@@ -90,7 +90,7 @@ foreach ($endpoint in $endpoints) {
   if ($endpoint -notmatch "^https://") {
     Add-Failure "Updater endpoint must use HTTPS: $endpoint"
   }
-  if ($endpoint -match "example\.com" -or $endpoint -match "localhost" -or $endpoint -match "127\.0\.0\.1") {
+  if ($endpoint -match "(^|[./])example\.(com|net|org)([:/]|$)|localhost|127\.0\.0\.1|\.local(domain)?\.|\.test([:/]|$)|\.invalid([:/]|$)") {
     Add-Failure "Updater endpoint is not production-ready: $endpoint"
   }
 }
@@ -101,6 +101,10 @@ if (-not $tauriConfig.bundle.createUpdaterArtifacts) {
 
 if (-not $tauriConfig.bundle.windows.signCommand) {
   Add-Failure "Windows signing command is not configured."
+}
+
+if ($env:SAYIT_ALLOW_UNSIGNED -eq "1") {
+  Add-Failure "SAYIT_ALLOW_UNSIGNED=1 is only allowed for local builds, not release readiness."
 }
 
 if ($env:SAYIT_SIGN_CERT_PATH) {

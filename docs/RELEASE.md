@@ -54,7 +54,8 @@ local-only build.
 - `SAYIT_SIGN_CERT_THUMBPRINT`
 - `SAYIT_SIGN_TIMESTAMP_URL`
 
-Unsigned artifacts must not be promoted beyond local testing.
+Unsigned artifacts must not be promoted beyond local testing. Release readiness
+fails if `SAYIT_ALLOW_UNSIGNED=1` is present.
 
 ## Automatic Updates
 
@@ -73,10 +74,10 @@ no updater endpoint; `scripts/generate-release-config.ps1` writes
 builds must pass it to Tauri with `--config`.
 
 `npm run verify:release-readiness` fails if the updater feed still points at a
-placeholder host, if signing secrets are missing or still look like
-placeholders, if the Git worktree has tracked uncommitted changes, if SBOMs or
-vulnerability audit reports are missing, or if the clean-machine smoke report
-has not confirmed the offline/restart/exit checks.
+placeholder, reserved test, or local host, if signing secrets are missing or
+still look like placeholders, if the Git worktree has tracked uncommitted
+changes, if SBOMs or vulnerability audit reports are missing, or if the
+clean-machine smoke report has not confirmed the offline/restart/exit checks.
 Smoke evidence is tied to the installer hash and size; the smoke script rejects
 non-installer paths and artifacts smaller than the offline backend bundle.
 

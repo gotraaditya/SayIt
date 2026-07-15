@@ -18,7 +18,7 @@ if ($endpoint -match "\s") {
   throw "SAYIT_UPDATE_ENDPOINT must not contain whitespace."
 }
 
-if ($endpoint -match "example\.com|localhost|127\.0\.0\.1") {
+if ($endpoint -match "(^|[./])example\.(com|net|org)([:/]|$)|localhost|127\.0\.0\.1|\.local(domain)?\.|\.test([:/]|$)|\.invalid([:/]|$)") {
   throw "SAYIT_UPDATE_ENDPOINT must not point at a placeholder or local host."
 }
 
