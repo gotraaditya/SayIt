@@ -9,6 +9,7 @@
     "build": "npm run verify:release-assets && npm run build:frontend",
     "build:frontend": "tsc && vite build",
     "verify:release-assets": "node scripts/verify-release-assets.mjs",
+    "test:release-scripts": "powershell -ExecutionPolicy Bypass -File scripts/test-release-scripts.ps1",
     "verify:release-readiness": "powershell -ExecutionPolicy Bypass -File scripts/verify-release-readiness.ps1",
     "verify:release-bundles": "powershell -ExecutionPolicy Bypass -File scripts/verify-release-bundles.ps1",
     "generate:release-config": "powershell -ExecutionPolicy Bypass -File scripts/generate-release-config.ps1",

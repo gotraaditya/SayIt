@@ -7,17 +7,18 @@ SayIt releases must pass these gates before MSI/NSIS artifacts are published.
 1. `npm ci`
 2. `powershell -ExecutionPolicy Bypass -File scripts/build-python-sidecar.ps1`
 3. `npm run verify:release-assets`
-4. `npm test -- --run`
-5. `python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"`
-6. `cd src-tauri && cargo test`
-7. `cargo install cargo-audit`
-8. `powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1`
-9. `powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1`
-10. `npm run generate:release-config`
-11. `npx tauri build --config release\tauri.release.conf.json`
-12. `npm run verify:release-bundles`
-13. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -DesktopLogPath <installed-app-log-dir>\sayit-desktop.log -BackendLogPath <installed-app-log-dir>\sayit-backend.log -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
-14. `npm run verify:release-readiness`
+4. `npm run test:release-scripts`
+5. `npm test -- --run`
+6. `python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"`
+7. `cd src-tauri && cargo test`
+8. `cargo install cargo-audit`
+9. `powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1`
+10. `powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1`
+11. `npm run generate:release-config`
+12. `npx tauri build --config release\tauri.release.conf.json`
+13. `npm run verify:release-bundles`
+14. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -DesktopLogPath <installed-app-log-dir>\sayit-desktop.log -BackendLogPath <installed-app-log-dir>\sayit-backend.log -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
+15. `npm run verify:release-readiness`
 
 The tag/manual release workflow in `.github/workflows/release.yml` runs these
 gates on Windows and expects the `release` GitHub environment to provide the
@@ -27,8 +28,8 @@ signed bundles because clean-machine smoke evidence can only be generated after
 an installer exists. Run the full `npm run verify:release-readiness` before
 promoting a signed artifact to a public channel.
 Release readiness checks that both the CI and release workflow files are present
-and still contain the critical test, audit, SBOM, sidecar, signing, bundle, and
-artifact upload gates.
+and still contain the critical test, release-script validation, audit, SBOM,
+sidecar, signing, bundle, and artifact upload gates.
 
 Backend test environments and release sidecar builds must install from
 `python-backend\requirements.lock.txt` with `--require-hashes`. The audit and

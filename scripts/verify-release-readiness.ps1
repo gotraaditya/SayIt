@@ -71,6 +71,76 @@ function Get-RequiredFileHash {
   return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
 
+function Test-PrivateOrLocalIpAddress {
+  param([System.Net.IPAddress]$Address)
+
+  if ([System.Net.IPAddress]::IsLoopback($Address)) {
+    return $true
+  }
+
+  $bytes = $Address.GetAddressBytes()
+  if ($Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork) {
+    return (
+      $bytes[0] -eq 10 -or
+      ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+      ($bytes[0] -eq 192 -and $bytes[1] -eq 168) -or
+      ($bytes[0] -eq 169 -and $bytes[1] -eq 254) -or
+      $bytes[0] -eq 0 -or
+      $bytes[0] -ge 224
+    )
+  }
+
+  if ($Address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+    return (
+      $Address.IsIPv6LinkLocal -or
+      $Address.IsIPv6SiteLocal -or
+      (($bytes[0] -band 0xfe) -eq 0xfc)
+    )
+  }
+
+  return $true
+}
+
+function Test-ProductionUpdaterEndpoint {
+  param([string]$Endpoint)
+
+  $endpointFailures = @()
+  $uri = $null
+  if (-not [System.Uri]::TryCreate($Endpoint, [System.UriKind]::Absolute, [ref]$uri)) {
+    return @("Updater endpoint must be an absolute HTTPS URL: $Endpoint")
+  }
+
+  if ($uri.Scheme -ne [System.Uri]::UriSchemeHttps) {
+    $endpointFailures += "Updater endpoint must use HTTPS: $Endpoint"
+  }
+
+  if ($uri.UserInfo) {
+    $endpointFailures += "Updater endpoint must not contain embedded credentials: $Endpoint"
+  }
+
+  if ($uri.Fragment) {
+    $endpointFailures += "Updater endpoint must not contain a URL fragment: $Endpoint"
+  }
+
+  if ($Endpoint -match "\s") {
+    $endpointFailures += "Updater endpoint must not contain whitespace: $Endpoint"
+  }
+
+  $uriHost = $uri.Host
+  if (-not $uriHost -or $uriHost -notmatch "\.") {
+    $endpointFailures += "Updater endpoint must use a production fully-qualified host: $Endpoint"
+  } elseif ($uriHost -match "(^|[.])example\.(com|net|org)$|\.example$|(^|[.])localhost$|\.local(domain)?$|\.test$|\.invalid$") {
+    $endpointFailures += "Updater endpoint is not production-ready: $Endpoint"
+  }
+
+  $ipAddress = $null
+  if ([System.Net.IPAddress]::TryParse($uriHost, [ref]$ipAddress) -and (Test-PrivateOrLocalIpAddress $ipAddress)) {
+    $endpointFailures += "Updater endpoint must not point at a local, private, or reserved IP address: $Endpoint"
+  }
+
+  return $endpointFailures
+}
+
 $failures = @()
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
@@ -112,6 +182,7 @@ Test-TextEvidence (Join-Path $root ".github\workflows\ci.yml") "CI workflow" @(
   "scripts/audit-security.ps1",
   "scripts/build-python-sidecar.ps1",
   "npm run verify:release-assets",
+  "npm run test:release-scripts",
   "scripts/generate-sbom.ps1"
 )
 
@@ -124,6 +195,7 @@ Test-TextEvidence (Join-Path $root ".github\workflows\release.yml") "Release wor
   "cargo test",
   "scripts/audit-security.ps1",
   "scripts/generate-sbom.ps1",
+  "npm run test:release-scripts",
   "scripts/generate-release-config.ps1",
   "scripts/verify-release-readiness.ps1 -SkipCleanMachineSmoke -ConfigPath release\tauri.release.conf.json",
   "npx tauri build --config release\tauri.release.conf.json",
@@ -148,11 +220,8 @@ if ($endpoints.Count -eq 0) {
   Add-Failure "Updater endpoints are missing."
 }
 foreach ($endpoint in $endpoints) {
-  if ($endpoint -notmatch "^https://") {
-    Add-Failure "Updater endpoint must use HTTPS: $endpoint"
-  }
-  if ($endpoint -match "(^|[./])example\.(com|net|org)([:/]|$)|localhost|127\.0\.0\.1|\.local(domain)?\.|\.test([:/]|$)|\.invalid([:/]|$)") {
-    Add-Failure "Updater endpoint is not production-ready: $endpoint"
+  foreach ($endpointFailure in (Test-ProductionUpdaterEndpoint $endpoint)) {
+    Add-Failure $endpointFailure
   }
 }
 

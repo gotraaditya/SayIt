@@ -72,6 +72,9 @@ jobs:
       - name: Verify release assets
         run: npm run verify:release-assets
 
+      - name: Test release scripts
+        run: npm run test:release-scripts
+
       - name: Test frontend
         run: npm test -- --run
 

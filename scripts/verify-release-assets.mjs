@@ -45,6 +45,8 @@ const parsedCapability = JSON.parse(capabilityText.replace(/^\uFEFF/, ""));
 const cargoManifestText = readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8");
 const packageManifestText = readFileSync(join(root, "package.json"), "utf8");
 const packageLockText = readFileSync(join(root, "package-lock.json"), "utf8");
+const ciWorkflowText = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
+const releaseWorkflowText = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
 const backendAppText = readFileSync(join(root, "python-backend", "app.py"), "utf8");
 const tauriLibText = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
 const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-smoke.ps1"), "utf8");
@@ -213,6 +215,28 @@ const requiredReleaseEvidenceFragments = [
       "Clean-machine smoke backend diagnostic log is missing voice evidence",
       "Clean-machine smoke desktop diagnostic log hash no longer matches the report.",
       "Clean-machine smoke backend diagnostic log hash no longer matches the report.",
+    ],
+  ],
+  [
+    "package.json",
+    packageManifestText,
+    [
+      "test:release-scripts",
+      "scripts/test-release-scripts.ps1",
+    ],
+  ],
+  [
+    ".github/workflows/ci.yml",
+    ciWorkflowText,
+    [
+      "npm run test:release-scripts",
+    ],
+  ],
+  [
+    ".github/workflows/release.yml",
+    releaseWorkflowText,
+    [
+      "npm run test:release-scripts",
     ],
   ],
 ];
