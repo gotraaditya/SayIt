@@ -31,6 +31,7 @@ python-backend/models/kokoro/LICENSE
 # Local logo experiments and temporary raster exports
 .logo-*/
 tmp-logo-*.png
+assets/brand/
 
 # Editor directories and files
 .vscode/*
