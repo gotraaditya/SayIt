@@ -378,14 +378,65 @@ fn resolve_backend_launch(app: &tauri::AppHandle) -> Result<(BackendLaunch, Path
 }
 
 #[cfg(not(mobile))]
-fn backend_log_path(app: &tauri::AppHandle) -> PathBuf {
+fn app_log_path(app: &tauri::AppHandle, file_name: &str) -> PathBuf {
     match app.path().app_log_dir() {
         Ok(log_dir) => {
             let _ = fs::create_dir_all(&log_dir);
-            log_dir.join("sayit-backend.log")
+            log_dir.join(file_name)
         }
-        Err(_) => std::env::temp_dir().join("sayit-backend.log"),
+        Err(_) => std::env::temp_dir().join(file_name),
     }
+}
+
+#[cfg(not(mobile))]
+fn backend_log_path(app: &tauri::AppHandle) -> PathBuf {
+    app_log_path(app, "sayit-backend.log")
+}
+
+#[cfg(not(mobile))]
+fn desktop_log_path(app: &tauri::AppHandle) -> PathBuf {
+    app_log_path(app, "sayit-desktop.log")
+}
+
+#[cfg(not(mobile))]
+fn write_diagnostic_log(log_path: &PathBuf, message: &str) {
+    if let Ok(mut log_file) = OpenOptions::new().create(true).append(true).open(log_path) {
+        let _ = writeln!(log_file, "[{:?}] {message}", std::time::SystemTime::now());
+    }
+}
+
+#[cfg(not(mobile))]
+fn log_desktop_diagnostic(app: &tauri::AppHandle, message: &str) {
+    write_diagnostic_log(&desktop_log_path(app), message);
+}
+
+#[cfg(not(mobile))]
+fn install_panic_logger(log_path: PathBuf) {
+    std::panic::set_hook(Box::new(move |panic_info| {
+        let payload = panic_info
+            .payload()
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| {
+                panic_info
+                    .payload()
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+            })
+            .unwrap_or("non-string panic payload");
+        let location = panic_info
+            .location()
+            .map(|location| {
+                format!(
+                    "{}:{}:{}",
+                    location.file(),
+                    location.line(),
+                    location.column()
+                )
+            })
+            .unwrap_or_else(|| "unknown location".to_string());
+        write_diagnostic_log(&log_path, &format!("panic at {location}: {payload}"));
+    }));
 }
 
 #[cfg(not(mobile))]
@@ -563,6 +614,11 @@ pub fn run() {
                                 }
                                 Err(error) => {
                                     eprintln!("SayIt selection capture failed: {error}");
+                                    #[cfg(not(mobile))]
+                                    log_desktop_diagnostic(
+                                        &app_handle,
+                                        &format!("Selection capture failed: {error}"),
+                                    );
                                     let _ = app_handle
                                         .emit("text_captured", "Failed to read selected text.");
                                 }
@@ -578,6 +634,13 @@ pub fn run() {
             get_backend_config
         ])
         .setup(move |app| {
+            #[cfg(not(mobile))]
+            {
+                let desktop_log_path = desktop_log_path(app.handle());
+                install_panic_logger(desktop_log_path.clone());
+                write_diagnostic_log(&desktop_log_path, "SayIt desktop setup started.");
+            }
+
             let tray_menu = MenuBuilder::new(app)
                 .text("show", "Show SayIt")
                 .text("settings", "Settings")
@@ -617,6 +680,11 @@ pub fn run() {
                 Ok(()) => Some(alt_s),
                 Err(error) => {
                     eprintln!("SayIt shortcut startup registration failed: {error}");
+                    #[cfg(not(mobile))]
+                    log_desktop_diagnostic(
+                        app.handle(),
+                        &format!("Shortcut startup registration failed: {error}"),
+                    );
                     None
                 }
             };
@@ -636,6 +704,11 @@ pub fn run() {
                 }
                 Err(error) => {
                     eprintln!("SayIt backend startup failed: {error}");
+                    #[cfg(not(mobile))]
+                    log_desktop_diagnostic(
+                        app.handle(),
+                        &format!("Backend startup failed: {error}"),
+                    );
                     if let Ok(mut backend) = setup_backend_connection.lock() {
                         backend.url.clear();
                         backend.token = backend_token.clone();
@@ -661,6 +734,10 @@ pub fn run() {
                     match child_guard.as_mut().and_then(|child| child.try_wait().ok().flatten()) {
                         Some(status) => {
                             eprintln!("SayIt backend exited: {status}");
+                            log_desktop_diagnostic(
+                                &monitor_app,
+                                &format!("Backend process exited: {status}"),
+                            );
                             *child_guard = None;
                             true
                         }
@@ -693,6 +770,10 @@ pub fn run() {
                     }
                     Err(error) => {
                         eprintln!("SayIt backend restart failed: {error}");
+                        log_desktop_diagnostic(
+                            &monitor_app,
+                            &format!("Backend restart failed: {error}"),
+                        );
                         if let Ok(mut backend) = monitor_backend_connection.lock() {
                             backend.available = false;
                             backend.last_error = error.clone();

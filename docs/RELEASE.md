@@ -90,6 +90,8 @@ known-good signed artifact.
 
 ## Crash Diagnostics
 
-Backend logs are written to the app log directory as `sayit-backend.log`.
-Desktop crashes should be collected by the platform crash reporter used by the
-release channel. Crash uploads must be opt-in until privacy review is complete.
+Backend stderr and app logs are written to the app log directory as
+`sayit-backend.log`. Desktop lifecycle events, shortcut capture errors, backend
+restart failures, and Rust panic messages are appended to `sayit-desktop.log` in
+the same directory. Crash uploads must remain opt-in until privacy review is
+complete.
