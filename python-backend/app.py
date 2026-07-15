@@ -76,9 +76,11 @@ class CancelRequest(BaseModel):
 
 inference_lock = threading.Lock()
 job_state_lock = threading.Lock()
+health_state_lock = threading.Lock()
 latest_job_id = ""
 canceled_job_ids: set[str] = set()
 canceled_job_order: deque[str] = deque()
+backend_degraded_reason = ""
 
 
 def create_app() -> FastAPI:
@@ -198,6 +200,18 @@ def job_is_stale_or_canceled(job_id: str) -> bool:
         return job_id != latest_job_id or job_id in canceled_job_ids
 
 
+def mark_backend_degraded(reason: str) -> None:
+    with health_state_lock:
+        global backend_degraded_reason
+        backend_degraded_reason = reason
+    LOGGER.error("Backend marked unhealthy: %s", reason)
+
+
+def backend_degraded() -> str:
+    with health_state_lock:
+        return backend_degraded_reason
+
+
 def render_audio(generator: Iterable[tuple[object, object, object]], job_id: str):
     audio_segments: list[np.ndarray] = []
     deadline = time.monotonic() + INFERENCE_DEADLINE_SECONDS
@@ -254,6 +268,7 @@ def render_speech_with_deadline(text: str, voice: str, job_id: str) -> io.BytesI
 
     if not completed.wait(INFERENCE_DEADLINE_SECONDS):
         cancel_job(job_id)
+        mark_backend_degraded("Speech synthesis timed out while inference was still running.")
         raise HTTPException(status_code=504, detail="Speech synthesis timed out.")
 
     error = result.get("error")
@@ -284,6 +299,8 @@ async def log_errors(request: Request, call_next):
 def health(_auth: None = Depends(require_auth)):
     if pipeline is None:
         raise HTTPException(status_code=503, detail="TTS service is unavailable.")
+    if backend_degraded():
+        raise HTTPException(status_code=503, detail="TTS service needs restart.")
     return {"status": "ok"}
 
 

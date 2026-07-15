@@ -25,6 +25,11 @@ def wait_for_inference_lock_release(timeout_seconds: float = 1.0):
     raise AssertionError("inference lock was not released before the test deadline")
 
 
+def reset_backend_degraded_state():
+    with sayit_app.health_state_lock:
+        sayit_app.backend_degraded_reason = ""
+
+
 class BackendValidationTests(unittest.TestCase):
     def test_rejects_empty_text(self):
         with self.assertRaises(HTTPException) as context:
@@ -274,16 +279,18 @@ class BackendValidationTests(unittest.TestCase):
         self.assertTrue(sayit_app.job_is_stale_or_canceled("running-job"))
         self.assertFalse(sayit_app.job_is_stale_or_canceled("busy-job"))
 
-    def test_synthesize_timeout_keeps_inference_slot_busy_until_worker_exits(self):
+    def test_synthesize_timeout_marks_backend_unhealthy_until_restart(self):
         class SlowPipeline:
             def __call__(self, *_args, **_kwargs):
                 time.sleep(0.2)
                 return iter([("text", "phonemes", [0.1])])
 
+        client = TestClient(sayit_app.app)
         original_pipeline = sayit_app.pipeline
         original_deadline = sayit_app.INFERENCE_DEADLINE_SECONDS
         sayit_app.pipeline = SlowPipeline()
         sayit_app.INFERENCE_DEADLINE_SECONDS = 0.01
+        reset_backend_degraded_state()
         try:
             with self.assertRaises(HTTPException) as context:
                 sayit_app.synthesize(
@@ -296,10 +303,13 @@ class BackendValidationTests(unittest.TestCase):
 
             self.assertEqual(context.exception.status_code, 504)
             self.assertFalse(sayit_app.inference_lock.acquire(blocking=False))
+            health = client.get("/health", headers={"X-SayIt-Token": "test-token"})
+            self.assertEqual(health.status_code, 503)
         finally:
             sayit_app.pipeline = original_pipeline
             sayit_app.INFERENCE_DEADLINE_SECONDS = original_deadline
             wait_for_inference_lock_release()
+            reset_backend_degraded_state()
 
 
 if __name__ == "__main__":
