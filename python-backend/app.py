@@ -1,4 +1,5 @@
 import io
+import hmac
 import logging
 import os
 import threading
@@ -110,7 +111,7 @@ def require_auth(x_sayit_token: str = Header(default="")) -> None:
     if not AUTH_TOKEN:
         LOGGER.error("SAYIT_BACKEND_TOKEN is not configured.")
         raise HTTPException(status_code=503, detail="TTS service is unavailable.")
-    if not x_sayit_token or x_sayit_token != AUTH_TOKEN:
+    if not x_sayit_token or not hmac.compare_digest(x_sayit_token, AUTH_TOKEN):
         raise HTTPException(status_code=401, detail="Unauthorized.")
 
 
