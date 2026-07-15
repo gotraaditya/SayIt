@@ -82,6 +82,11 @@ if ($LASTEXITCODE -ne 0) {
   throw "pip-audit failed with exit code $LASTEXITCODE"
 }
 
+& $python -m pip_audit -r python-backend\packaging-requirements.lock.txt --format json --output (Join-Path $auditDir "python-packaging-audit.json")
+if ($LASTEXITCODE -ne 0) {
+  throw "packaging pip-audit failed with exit code $LASTEXITCODE"
+}
+
 $provenance = [ordered]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString("o")
   sourceCommit = $sourceCommit
@@ -89,6 +94,7 @@ $provenance = [ordered]@{
     packageLockSha256 = Get-RequiredFileHash "package-lock.json"
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+    packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
   }
 }
 

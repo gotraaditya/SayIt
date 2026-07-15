@@ -62,6 +62,13 @@ const noticesText = existsSync(join(root, "THIRD_PARTY_NOTICES.md"))
   : "";
 const requirements = readFileSync(join(root, "python-backend", "requirements.txt"), "utf8");
 const requirementsLock = readFileSync(join(root, "python-backend", "requirements.lock.txt"), "utf8");
+const packagingRequirementsLockPath = join(root, "python-backend", "packaging-requirements.lock.txt");
+const packagingRequirementsLock = existsSync(packagingRequirementsLockPath)
+  ? readFileSync(packagingRequirementsLockPath, "utf8")
+  : "";
+const buildPythonSidecarText = readFileSync(join(root, "scripts", "build-python-sidecar.ps1"), "utf8");
+const auditSecurityText = readFileSync(join(root, "scripts", "audit-security.ps1"), "utf8");
+const generateSbomText = readFileSync(join(root, "scripts", "generate-sbom.ps1"), "utf8");
 
 if (tauriConfig.includes("python-backend/venv") || tauriConfig.includes("python-backend\\\\venv")) {
   missing.push("tauri.conf.json must not bundle python-backend/venv");
@@ -224,6 +231,33 @@ const requiredReleaseEvidenceFragments = [
       "must be a private updater signing key, not a public key.",
       "TAURI_SIGNING_PRIVATE_KEY_PATH",
       "[IO.Path]::IsPathRooted($ConfigPath)",
+      "packagingRequirementsLockSha256",
+      "python-packaging-audit.json",
+    ],
+  ],
+  [
+    "scripts/build-python-sidecar.ps1",
+    buildPythonSidecarText,
+    [
+      "packaging-requirements.lock.txt",
+      "pip install --require-hashes -r $packagingRequirementsLock",
+    ],
+  ],
+  [
+    "scripts/audit-security.ps1",
+    auditSecurityText,
+    [
+      "python-packaging-audit.json",
+      "packaging-requirements.lock.txt",
+      "packagingRequirementsLockSha256",
+    ],
+  ],
+  [
+    "scripts/generate-sbom.ps1",
+    generateSbomText,
+    [
+      "packaging-requirements.lock.txt",
+      "packagingRequirementsLockSha256",
     ],
   ],
   [
@@ -312,6 +346,28 @@ if (!/^torch==[^\r\n+]+\+cpu$/m.test(requirements)) {
 
 if (!requirementsLock.includes("--generate-hashes") || !requirementsLock.includes("--hash=sha256:")) {
   missing.push("python-backend/requirements.lock.txt must be generated with transitive hashes");
+}
+
+if (!packagingRequirementsLock) {
+  missing.push("python-backend/packaging-requirements.lock.txt must exist");
+} else {
+  for (const packageName of [
+    "pyinstaller",
+    "pyinstaller-hooks-contrib",
+    "altgraph",
+    "pefile",
+    "pywin32-ctypes",
+    "setuptools",
+  ]) {
+    const pattern = new RegExp(`^${packageName}==`, "im");
+    if (!pattern.test(packagingRequirementsLock)) {
+      missing.push(`python-backend/packaging-requirements.lock.txt must pin ${packageName}`);
+    }
+  }
+
+  if (!packagingRequirementsLock.includes("--hash=sha256:")) {
+    missing.push("python-backend/packaging-requirements.lock.txt must use hashes");
+  }
 }
 
 if (!/MIT License/i.test(licenseText)) {

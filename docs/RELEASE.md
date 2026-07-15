@@ -31,10 +31,13 @@ Release readiness checks that both the CI and release workflow files are present
 and still contain the critical test, release-script validation, audit, SBOM,
 sidecar, signing, bundle, and artifact upload gates.
 
-Backend test environments and release sidecar builds must install from
-`python-backend\requirements.lock.txt` with `--require-hashes`. The audit and
-SBOM scripts fail the release if npm, Rust, or Python evidence cannot be
-generated. Security audit and SBOM evidence include
+Backend test environments and release sidecar builds must install runtime
+dependencies from `python-backend\requirements.lock.txt` with
+`--require-hashes`. Release sidecar builds must also install PyInstaller and its
+build-time dependencies from `python-backend\packaging-requirements.lock.txt`
+with `--require-hashes`; ad hoc packaging tool downloads are not allowed. The
+audit and SBOM scripts fail the release if npm, Rust, runtime Python, or
+packaging-tool evidence cannot be generated. Security audit and SBOM evidence include
 `release\audit\provenance.json` and `release\sbom\provenance.json`, which tie
 the reports to the current Git commit and dependency lockfile hashes.
 

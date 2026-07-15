@@ -55,6 +55,7 @@ $provenance = [ordered]@{
     packageLockSha256 = Get-RequiredFileHash "package-lock.json"
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+    packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
   }
 }
 

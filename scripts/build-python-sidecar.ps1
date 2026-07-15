@@ -19,6 +19,7 @@ $voicesDir = Join-Path $modelsDir "voices"
 $runtimeDir = Join-Path $root "python-backend-runtime"
 $buildVenv = Join-Path $root ".packaging\python-sidecar-venv"
 $requirementsLock = Join-Path $backendDir "requirements.lock.txt"
+$packagingRequirementsLock = Join-Path $backendDir "packaging-requirements.lock.txt"
 $requiredVoices = @(
   "af_alloy",
   "af_bella",
@@ -38,6 +39,9 @@ New-Item -ItemType Directory -Force -Path $modelsDir, $voicesDir, $runtimeDir | 
 if (-not (Test-Path $requirementsLock)) {
   throw "Missing $requirementsLock. Regenerate it with pip-compile --allow-unsafe --generate-hashes before packaging."
 }
+if (-not (Test-Path $packagingRequirementsLock)) {
+  throw "Missing $packagingRequirementsLock. Packaging tools must be pinned with hashes before release."
+}
 
 if (-not (Test-Path $buildVenv)) {
   Invoke-Checked $Python -m venv $buildVenv
@@ -46,7 +50,7 @@ if (-not (Test-Path $buildVenv)) {
 $venvPython = Join-Path $buildVenv "Scripts\python.exe"
 Invoke-Checked $venvPython -m pip install --upgrade pip
 Invoke-Checked $venvPython -m pip install --require-hashes -r $requirementsLock
-Invoke-Checked $venvPython -m pip install pyinstaller huggingface_hub
+Invoke-Checked $venvPython -m pip install --require-hashes -r $packagingRequirementsLock
 
 $downloadScriptPath = Join-Path $root ".packaging\download_kokoro_assets.py"
 $downloadScript = @'
@@ -89,6 +93,11 @@ $env:SAYIT_KOKORO_REPO = $RepoId
 $env:SAYIT_MODELS_DIR = $modelsDir
 $env:SAYIT_VOICES = ($requiredVoices -join ",")
 Invoke-Checked $venvPython $downloadScriptPath
+
+$downloadCacheDir = Join-Path $modelsDir ".cache"
+if (Test-Path -LiteralPath $downloadCacheDir) {
+  Remove-Item -LiteralPath $downloadCacheDir -Recurse -Force
+}
 
 $hashFile = Join-Path $modelsDir "SHA256SUMS.txt"
 Get-ChildItem -Path $modelsDir -Recurse -File |

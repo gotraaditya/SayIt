@@ -380,6 +380,7 @@ if ($sbomProvenance) {
     packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+    packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
   }
 
   foreach ($name in $expectedSbomInputs.Keys) {
@@ -414,6 +415,7 @@ if ($auditProvenance) {
     packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+    packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
   }
 
   foreach ($name in $expectedAuditInputs.Keys) {
@@ -456,6 +458,17 @@ if ($pythonAudit) {
   )
   if ($unexpectedSkips.Count -gt 0) {
     Add-Failure "Python audit report contains unexpected skipped dependencies."
+  }
+}
+
+$pythonPackagingAudit = Read-JsonEvidence (Join-Path $auditDir "python-packaging-audit.json") "vulnerability audit report"
+if ($pythonPackagingAudit) {
+  $pythonPackagingVulnerabilities = @(
+    $pythonPackagingAudit.dependencies |
+      Where-Object { $_.vulns -and @($_.vulns).Count -gt 0 }
+  )
+  if ($pythonPackagingVulnerabilities.Count -gt 0) {
+    Add-Failure "Python packaging audit report contains known vulnerabilities."
   }
 }
 
