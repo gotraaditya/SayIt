@@ -236,7 +236,7 @@ class BackendValidationTests(unittest.TestCase):
             sayit_app.canceled_job_ids,
         )
 
-    def test_synthesize_rejects_when_inference_is_busy(self):
+    def test_synthesize_rejects_when_inference_is_busy_and_supersedes_running_job(self):
         class FakePipeline:
             def __call__(self, *_args, **_kwargs):
                 return iter([])
@@ -260,7 +260,8 @@ class BackendValidationTests(unittest.TestCase):
             sayit_app.pipeline = original_pipeline
 
         self.assertEqual(context.exception.status_code, 429)
-        self.assertFalse(sayit_app.job_is_stale_or_canceled("running-job"))
+        self.assertTrue(sayit_app.job_is_stale_or_canceled("running-job"))
+        self.assertFalse(sayit_app.job_is_stale_or_canceled("busy-job"))
 
 
 if __name__ == "__main__":
