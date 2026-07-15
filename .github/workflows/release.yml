@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Rust audit tool
+        run: cargo install cargo-audit
+
+      - name: Configure signing secrets
+        shell: pwsh
+        env:
+          SAYIT_SIGN_CERT_BASE64: ${{ secrets.SAYIT_SIGN_CERT_BASE64 }}
+          SAYIT_SIGN_CERT_PASSWORD: ${{ secrets.SAYIT_SIGN_CERT_PASSWORD }}
+          SAYIT_SIGN_CERT_THUMBPRINT: ${{ secrets.SAYIT_SIGN_CERT_THUMBPRINT }}
+          SAYIT_SIGN_TIMESTAMP_URL: ${{ secrets.SAYIT_SIGN_TIMESTAMP_URL }}
+          SAYIT_UPDATE_ENDPOINT: ${{ secrets.SAYIT_UPDATE_ENDPOINT }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if ($env:SAYIT_SIGN_CERT_BASE64) {
+            $certPath = Join-Path $env:RUNNER_TEMP "sayit-signing.pfx"
+            [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:SAYIT_SIGN_CERT_BASE64))
+            "SAYIT_SIGN_CERT_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:SAYIT_SIGN_CERT_PASSWORD) {
+            "SAYIT_SIGN_CERT_PASSWORD=$env:SAYIT_SIGN_CERT_PASSWORD" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:SAYIT_SIGN_CERT_THUMBPRINT) {
+            "SAYIT_SIGN_CERT_THUMBPRINT=$env:SAYIT_SIGN_CERT_THUMBPRINT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:SAYIT_SIGN_TIMESTAMP_URL) {
+            "SAYIT_SIGN_TIMESTAMP_URL=$env:SAYIT_SIGN_TIMESTAMP_URL" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:SAYIT_UPDATE_ENDPOINT) {
+            "SAYIT_UPDATE_ENDPOINT=$env:SAYIT_UPDATE_ENDPOINT" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+            "TAURI_SIGNING_PRIVATE_KEY=$env:TAURI_SIGNING_PRIVATE_KEY" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+          if ($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      - name: Build sidecar and offline model assets
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-python-sidecar.ps1
+
+      - name: Verify release assets
+        run: npm run verify:release-assets
+
+      - name: Test frontend
+        run: npm test -- --run
+
+      - name: Test backend
+        shell: pwsh
+        run: |
+          python -m venv python-backend\venv
+          python-backend\venv\Scripts\python.exe -m pip install --upgrade pip
+          python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
+          python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"
+
+      - name: Test Rust
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Security audits
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1
+
+      - name: Generate SBOM
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1
+
+      - name: Generate release updater config
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/generate-release-config.ps1
+
+      - name: Check release readiness
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/verify-release-readiness.ps1 -SkipCleanMachineSmoke -ConfigPath release\tauri.release.conf.json
+
+      - name: Build signed Tauri bundles
+        run: npx tauri build --config release\tauri.release.conf.json
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sayit-release
+          path: |
+            src-tauri/target/release/bundle/**
+            release/sbom/**
+            release/audit/**
+          if-no-files-found: error

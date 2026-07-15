@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc">
+  <title id="title">SayIt logo</title>
+  <desc id="desc">Warm-white abstract S and waveform mark with an orange lower-left section on a dark rounded-square tile.</desc>
+
+  <defs>
+    <radialGradient id="tile" cx="50%" cy="45%" r="72%">
+      <stop offset="0" stop-color="#141412"/>
+      <stop offset="1" stop-color="#11110F"/>
+    </radialGradient>
+    <linearGradient id="ivory" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F1EC"/>
+      <stop offset="1" stop-color="#F1EEE9"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FD6A34"/>
+      <stop offset="1" stop-color="#FF6731"/>
+    </linearGradient>
+    <filter id="soft-shadow" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.26"/>
+    </filter>
+    <mask id="white-mark" maskUnits="userSpaceOnUse" x="250" y="190" width="750" height="890">
+      <rect x="250" y="190" width="750" height="890" fill="#000"/>
+      <path
+        fill="#FFF"
+        d="M954 205H494c-123 0-223 94-223 212 0 123 103 223 219 223h243v-30H523c-39 0-71-31-71-68 0-38 35-68 68-68h311v-56H426v-37h528v-55H426v-38h528Z"
+      />
+      <path
+        fill="#FFF"
+        d="M733 611h60c42 0 80 17 116 44 47 36 74 91 74 152 0 140-150 253-342 253V831c0-14 10-25 24-25 13 0 23 11 23 25v127c0 12 8 21 17 21 10 0 18-9 18-21V767c0-14 10-24 24-24 13 0 23 10 23 24v114c0 13 8 24 19 24 10 0 18-11 18-24V736c0-56-30-96-74-96Z"
+      />
+      <!-- Open waveform slots in the right-hand bowl. -->
+      <path fill="#000" d="M861 785c-13 0-23 11-23 25v444h45V810c0-14-9-25-22-25Z"/>
+      <path fill="#000" d="M928 858c-10 0-18 11-18 24v372h344V923H946v-41c0-13-8-24-18-24Z"/>
+    </mask>
+  </defs>
+
+  <rect width="1254" height="1254" fill="#000000"/>
+  <path fill="url(#tile)" d="M312 0h630c208 0 312 104 312 312v630c0 208-104 312-312 312H312C104 1254 0 1150 0 942V312C0 104 104 0 312 0Z"/>
+
+  <g filter="url(#soft-shadow)">
+    <rect x="250" y="190" width="750" height="890" fill="url(#ivory)" mask="url(#white-mark)"/>
+
+    <path
+      fill="url(#orange)"
+      d="M275 737 C274 800 294 860 320 900 C358 960 433 1025 548 1050 L604 1059 V858 C604 845 593 834 580 834 C567 834 556 845 556 858 V973 C556 986 545 997 532 997 C525 997 520 992 520 985 V883 C520 869 511 858 499 858 C487 858 478 869 478 883 V920 C478 937 470 946 460 950 C450 946 442 937 442 920 V860 C442 820 406 770 337 750 C320 745 286 737 275 737 Z"
+    />
+  </g>
+</svg>

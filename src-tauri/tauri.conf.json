@@ -1,0 +1,73 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "SayIt",
+  "version": "0.1.0",
+  "identifier": "com.sayit.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1425",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "SayIt",
+        "width": 328,
+        "height": 112,
+        "resizable": false,
+        "fullscreen": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "visible": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost; media-src 'self' blob:; connect-src 'self' http://127.0.0.1:* http://localhost:*"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "resources": {
+      "../python-backend/app.py": "python-backend/app.py",
+      "../python-backend/backend_server.py": "python-backend/backend_server.py",
+      "../python-backend/models/": "python-backend/models",
+      "../python-backend-runtime/": "python-backend-runtime"
+    },
+    "windows": {
+      "allowDowngrades": false,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "tsp": false,
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "../scripts/sign-windows.ps1",
+          "%1"
+        ]
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0MDMyRkJDNDFBODMzQ0EKUldUS002aEJ2QzhEVkhPZGhkcE1SNzJzb2pCN0ZxWldkSXN5QzlFMVhkOWFidWFZVUdKUDFGb0MK",
+      "endpoints": [],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install backend test dependencies
+        shell: pwsh
+        run: |
+          python -m venv python-backend\venv
+          python-backend\venv\Scripts\python.exe -m pip install --upgrade pip
+          python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
+
+      - name: Install Rust audit tool
+        run: cargo install cargo-audit
+
+      - name: Frontend tests
+        run: npm test -- --run
+
+      - name: Backend tests
+        shell: pwsh
+        run: python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"
+
+      - name: Rust checks
+        working-directory: src-tauri
+        run: cargo test
+
+      - name: Security audits
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1
+
+      - name: Build release sidecar assets
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/build-python-sidecar.ps1
+
+      - name: Verify release assets
+        run: npm run verify:release-assets
+
+      - name: Generate SBOM
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1

@@ -1,0 +1,4 @@
+Bundled Kokoro model assets from hexgrad/Kokoro-82M.
+No top-level LICENSE file was present in the Hugging Face repository at packaging time.
+Model card license metadata: apache-2.0
+Review the model card before distribution: https://huggingface.co/hexgrad/Kokoro-82M

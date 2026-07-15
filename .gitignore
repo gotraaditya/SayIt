@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+__pycache__
+*.py[cod]
+release/*.conf.json
+release/sbom
+release/audit
+src-tauri/target
+src-tauri/rust.json
+python-backend/venv
+python-backend-runtime/*
+!python-backend-runtime/README.md
+.packaging
+python-backend/models/kokoro/*.pth
+python-backend/models/kokoro/voices/*.pt
+python-backend/models/kokoro/.cache
+python-backend/models/kokoro/SHA256SUMS.txt
+python-backend/models/kokoro/LICENSE
+*.local
+
+# Local logo experiments and temporary raster exports
+.logo-*/
+tmp-logo-*.png
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

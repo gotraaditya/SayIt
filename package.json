@@ -1,0 +1,40 @@
+{
+  "name": "tauri-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:reset": "powershell -ExecutionPolicy Bypass -File scripts/stop-sayit-dev.ps1",
+    "build": "npm run verify:release-assets && npm run build:frontend",
+    "build:frontend": "tsc && vite build",
+    "verify:release-assets": "node scripts/verify-release-assets.mjs",
+    "verify:release-readiness": "powershell -ExecutionPolicy Bypass -File scripts/verify-release-readiness.ps1",
+    "generate:release-config": "powershell -ExecutionPolicy Bypass -File scripts/generate-release-config.ps1",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@fontsource-variable/instrument-sans": "^5.2.8",
+    "@fontsource/dm-mono": "^5.2.7",
+    "@tailwindcss/vite": "^4.3.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.2",
+    "@tauri-apps/plugin-updater": "^2.10.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.17",
+    "tailwindcss": "^4.3.2",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4",
+    "vitest": "^4.1.10"
+  }
+}
