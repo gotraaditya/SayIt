@@ -7,8 +7,23 @@ function Invoke-Checked {
   }
 }
 
+function Get-RequiredFileHash {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "Missing required SBOM input: $Path"
+  }
+
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+}
+
 $sbomDir = Join-Path (Resolve-Path .) "release\sbom"
 New-Item -ItemType Directory -Force -Path $sbomDir | Out-Null
+
+$sourceCommit = (& cmd.exe /c "git rev-parse --verify HEAD 2>nul")
+if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
+  throw "SBOM reports must be tied to a real Git commit."
+}
 
 Invoke-Checked npx.cmd --yes @cyclonedx/cyclonedx-npm --output-file (Join-Path $sbomDir "npm.cdx.json")
 
@@ -32,3 +47,15 @@ if (Test-Path ".packaging\python-sidecar-venv\Scripts\cyclonedx-py.exe") {
 } else {
   throw "Packaging venv is missing; run scripts/build-python-sidecar.ps1 before Python SBOM generation."
 }
+
+$provenance = [ordered]@{
+  generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+  sourceCommit = $sourceCommit
+  inputs = [ordered]@{
+    packageLockSha256 = Get-RequiredFileHash "package-lock.json"
+    cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
+    requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+  }
+}
+
+$provenance | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 -Path (Join-Path $sbomDir "provenance.json")

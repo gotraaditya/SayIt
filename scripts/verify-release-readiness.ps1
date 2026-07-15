@@ -197,6 +197,27 @@ if ($env:TAURI_SIGNING_PRIVATE_KEY_PATH) {
 }
 
 $sbomDir = Join-Path $root "release\sbom"
+$sbomProvenance = Read-JsonEvidence (Join-Path $sbomDir "provenance.json") "SBOM provenance"
+if ($sbomProvenance) {
+  if (-not $sbomProvenance.sourceCommit) {
+    Add-Failure "SBOM provenance is missing sourceCommit."
+  } elseif ($currentHeadCommit -and $sbomProvenance.sourceCommit -ne $currentHeadCommit) {
+    Add-Failure "SBOM provenance sourceCommit does not match current Git HEAD."
+  }
+
+  $expectedSbomInputs = @{
+    packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
+    cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
+    requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+  }
+
+  foreach ($name in $expectedSbomInputs.Keys) {
+    if ($expectedSbomInputs[$name] -and $sbomProvenance.inputs.$name -ne $expectedSbomInputs[$name]) {
+      Add-Failure "SBOM provenance input hash does not match: $name"
+    }
+  }
+}
+
 foreach ($name in @("npm.cdx.json", "rust.cdx.json", "python.cdx.json")) {
   $sbom = Read-JsonEvidence (Join-Path $sbomDir $name) "SBOM file"
   if ($sbom) {
