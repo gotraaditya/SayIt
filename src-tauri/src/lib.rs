@@ -201,6 +201,10 @@ fn validate_shortcut(shortcut: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn should_replace_shortcut(current: Option<&Shortcut>, next: &Shortcut) -> bool {
+    current != Some(next)
+}
+
 #[tauri::command]
 fn hide_window(window: tauri::Window) {
     let _ = window.hide();
@@ -220,7 +224,7 @@ fn update_shortcut(
         .current_shortcut
         .lock()
         .map_err(|_| "Shortcut state is unavailable.".to_string())?;
-    if current.as_ref() == Some(&parsed) {
+    if !should_replace_shortcut(current.as_ref(), &parsed) {
         return Ok(());
     }
 
@@ -835,13 +839,14 @@ pub fn run() {
 mod tests {
     use super::{
         backend_dir_candidates, backend_healthcheck, parse_loopback_url, select_backend_dir,
-        validate_shortcut,
+        should_replace_shortcut, validate_shortcut,
     };
     use std::fs;
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
+    use tauri_plugin_global_shortcut::Shortcut;
 
     #[test]
     fn rejects_reserved_shortcuts() {
@@ -859,6 +864,22 @@ mod tests {
     fn accepts_modified_shortcuts() {
         assert!(validate_shortcut("alt+s").is_ok());
         assert!(validate_shortcut("ctrl+shift+p").is_ok());
+    }
+
+    #[test]
+    fn shortcut_replacement_is_noop_for_same_shortcut() {
+        let shortcut = "alt+s".parse::<Shortcut>().unwrap();
+
+        assert!(!should_replace_shortcut(Some(&shortcut), &shortcut));
+    }
+
+    #[test]
+    fn shortcut_replacement_required_for_new_or_missing_shortcut() {
+        let current = "alt+s".parse::<Shortcut>().unwrap();
+        let next = "ctrl+shift+p".parse::<Shortcut>().unwrap();
+
+        assert!(should_replace_shortcut(Some(&current), &next));
+        assert!(should_replace_shortcut(None, &next));
     }
 
     #[test]

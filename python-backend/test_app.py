@@ -109,6 +109,17 @@ class BackendValidationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 401)
 
+    def test_missing_backend_token_fails_closed(self):
+        original_token = sayit_app.AUTH_TOKEN
+        sayit_app.AUTH_TOKEN = ""
+        try:
+            with self.assertRaises(HTTPException) as context:
+                sayit_app.require_auth("test-token")
+        finally:
+            sayit_app.AUTH_TOKEN = original_token
+
+        self.assertEqual(context.exception.status_code, 503)
+
     def test_health_requires_token_and_reports_unavailable_model(self):
         client = TestClient(sayit_app.app)
 
