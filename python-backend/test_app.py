@@ -193,6 +193,7 @@ class BackendValidationTests(unittest.TestCase):
 
         original_pipeline = sayit_app.pipeline
         sayit_app.pipeline = FakePipeline()
+        sayit_app.remember_latest_job("running-job")
         acquired = sayit_app.inference_lock.acquire(blocking=False)
         self.assertTrue(acquired)
         try:
@@ -209,6 +210,7 @@ class BackendValidationTests(unittest.TestCase):
             sayit_app.pipeline = original_pipeline
 
         self.assertEqual(context.exception.status_code, 429)
+        self.assertFalse(sayit_app.job_is_stale_or_canceled("running-job"))
 
 
 if __name__ == "__main__":

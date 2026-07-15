@@ -259,11 +259,11 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
     if pipeline is None:
         raise HTTPException(status_code=503, detail="TTS service is unavailable.")
 
-    remember_latest_job(request.job_id)
     if not inference_lock.acquire(blocking=False):
         raise HTTPException(status_code=429, detail="Speech synthesis is already running.")
 
     try:
+        remember_latest_job(request.job_id)
         if job_is_stale_or_canceled(request.job_id):
             raise HTTPException(status_code=409, detail="Synthesis job was superseded.")
         audio_buffer = render_audio(
