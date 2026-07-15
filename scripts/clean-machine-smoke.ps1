@@ -15,9 +15,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 $minimumInstallerBytes = 50MB
+$root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 
 if (-not (Test-Path -LiteralPath $InstallerPath)) {
   throw "Installer does not exist: $InstallerPath"
+}
+
+Push-Location $root
+try {
+  $sourceCommit = (& cmd.exe /c "git rev-parse --verify HEAD 2>nul")
+  if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
+    throw "Clean-machine smoke report must be tied to a real Git commit."
+  }
+} finally {
+  Pop-Location
 }
 
 $installer = Get-Item -LiteralPath $InstallerPath
@@ -58,13 +69,18 @@ $report = [ordered]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString("o")
   machineName = $env:COMPUTERNAME
   userName = $env:USERNAME
+  sourceCommit = $sourceCommit
   installerPath = $installer.FullName
   installerSize = $installer.Length
   installerSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
   checks = $checks
 }
 
-$resolvedReportPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $ReportPath))
+if ([IO.Path]::IsPathRooted($ReportPath)) {
+  $resolvedReportPath = [IO.Path]::GetFullPath($ReportPath)
+} else {
+  $resolvedReportPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $ReportPath))
+}
 $reportDir = Split-Path -Parent $resolvedReportPath
 New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 $report | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 -Path $resolvedReportPath

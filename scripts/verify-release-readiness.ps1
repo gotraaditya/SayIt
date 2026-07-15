@@ -45,6 +45,7 @@ $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $tauriConfigPath = Join-Path $root "src-tauri\tauri.conf.json"
 $tauriConfig = Get-Content -Raw -Path $tauriConfigPath | ConvertFrom-Json
+$currentHeadCommit = $null
 
 Push-Location $root
 try {
@@ -57,6 +58,8 @@ try {
       Add-Failure "Release must be built from a real Git commit; HEAD is missing."
     } elseif ($env:GITHUB_SHA -and $headCommit -ne $env:GITHUB_SHA) {
       Add-Failure "Git HEAD does not match GITHUB_SHA."
+    } else {
+      $currentHeadCommit = $headCommit
     }
 
     $dirtyTrackedChanges = (& cmd.exe /c "git status --porcelain --untracked-files=no 2>nul")
@@ -198,6 +201,12 @@ if (-not $SkipCleanMachineSmoke) {
       }
     } catch {
       Add-Failure "Clean-machine smoke report has an invalid generatedAt timestamp."
+    }
+
+    if (-not $smokeReport.sourceCommit) {
+      Add-Failure "Clean-machine smoke report is missing sourceCommit."
+    } elseif ($currentHeadCommit -and $smokeReport.sourceCommit -ne $currentHeadCommit) {
+      Add-Failure "Clean-machine smoke sourceCommit does not match current Git HEAD."
     }
 
     if (-not (Test-Path -LiteralPath $smokeReport.installerPath)) {

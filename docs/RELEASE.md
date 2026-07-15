@@ -79,7 +79,9 @@ still look like placeholders, if the Git worktree has tracked uncommitted
 changes, if SBOMs or vulnerability audit reports are missing, or if the
 clean-machine smoke report has not confirmed the offline/restart/exit checks.
 Smoke evidence is tied to the installer hash and size; the smoke script rejects
-non-installer paths and artifacts smaller than the offline backend bundle.
+non-installer paths and artifacts smaller than the offline backend bundle. It
+also records the Git commit used for the build, and release readiness rejects
+smoke reports whose `sourceCommit` does not match the current `HEAD`.
 
 ## Release Channels
 
