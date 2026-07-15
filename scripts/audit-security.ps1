@@ -43,8 +43,23 @@ function Resolve-PythonForAudit {
   throw "No Python interpreter is available for pip-audit."
 }
 
+function Get-RequiredFileHash {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    throw "Missing required audit input: $Path"
+  }
+
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+}
+
 $auditDir = Join-Path (Resolve-Path .) "release\audit"
 New-Item -ItemType Directory -Force -Path $auditDir | Out-Null
+
+$sourceCommit = (& cmd.exe /c "git rev-parse --verify HEAD 2>nul")
+if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
+  throw "Security audit reports must be tied to a real Git commit."
+}
 
 Invoke-Checked npm.cmd @("audit", "--audit-level=moderate", "--json") (Join-Path $auditDir "npm-audit.json")
 
@@ -66,5 +81,17 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
   throw "pip-audit failed with exit code $LASTEXITCODE"
 }
+
+$provenance = [ordered]@{
+  generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+  sourceCommit = $sourceCommit
+  inputs = [ordered]@{
+    packageLockSha256 = Get-RequiredFileHash "package-lock.json"
+    cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
+    requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+  }
+}
+
+$provenance | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 -Path (Join-Path $auditDir "provenance.json")
 
 Write-Host "Security audit reports written to $auditDir"

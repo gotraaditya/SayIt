@@ -33,7 +33,8 @@ artifact upload gates.
 Backend test environments and release sidecar builds must install from
 `python-backend\requirements.lock.txt` with `--require-hashes`. The audit and
 SBOM scripts fail the release if npm, Rust, or Python evidence cannot be
-generated.
+generated. Security audit evidence includes `release\audit\provenance.json`,
+which ties the reports to the current Git commit and dependency lockfile hashes.
 
 Release readiness also requires a real Git `HEAD` commit. In GitHub Actions it
 checks that `HEAD` matches `GITHUB_SHA`, so published artifacts can be traced

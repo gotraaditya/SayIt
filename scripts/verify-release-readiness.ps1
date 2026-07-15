@@ -60,6 +60,17 @@ function Test-TextEvidence {
   }
 }
 
+function Get-RequiredFileHash {
+  param([string]$Path)
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    Add-Failure "Missing required release input for hashing: $Path"
+    return $null
+  }
+
+  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+}
+
 $failures = @()
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
@@ -199,6 +210,27 @@ foreach ($name in @("npm.cdx.json", "rust.cdx.json", "python.cdx.json")) {
 }
 
 $auditDir = Join-Path $root "release\audit"
+$auditProvenance = Read-JsonEvidence (Join-Path $auditDir "provenance.json") "vulnerability audit provenance"
+if ($auditProvenance) {
+  if (-not $auditProvenance.sourceCommit) {
+    Add-Failure "Vulnerability audit provenance is missing sourceCommit."
+  } elseif ($currentHeadCommit -and $auditProvenance.sourceCommit -ne $currentHeadCommit) {
+    Add-Failure "Vulnerability audit provenance sourceCommit does not match current Git HEAD."
+  }
+
+  $expectedAuditInputs = @{
+    packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
+    cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
+    requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+  }
+
+  foreach ($name in $expectedAuditInputs.Keys) {
+    if ($expectedAuditInputs[$name] -and $auditProvenance.inputs.$name -ne $expectedAuditInputs[$name]) {
+      Add-Failure "Vulnerability audit provenance input hash does not match: $name"
+    }
+  }
+}
+
 $npmAudit = Read-JsonEvidence (Join-Path $auditDir "npm-audit.json") "vulnerability audit report"
 if ($npmAudit) {
   if ($npmAudit.auditReportVersion -lt 2) {
