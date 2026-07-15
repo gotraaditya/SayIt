@@ -19,6 +19,8 @@ const requiredVoices = [
 ];
 
 const requiredFiles = [
+  join(root, "LICENSE"),
+  join(root, "THIRD_PARTY_NOTICES.md"),
   join(root, "python-backend-runtime", "sayit-backend.exe"),
   join(root, "python-backend", "models", "kokoro", "SHA256SUMS.txt"),
 ];
@@ -38,6 +40,12 @@ const missing = requiredFiles.filter((path) => !existsSync(path));
 const tauriConfigPath = join(root, "src-tauri", "tauri.conf.json");
 const tauriConfig = readFileSync(tauriConfigPath, "utf8");
 const parsedTauriConfig = JSON.parse(tauriConfig);
+const licenseText = existsSync(join(root, "LICENSE"))
+  ? readFileSync(join(root, "LICENSE"), "utf8")
+  : "";
+const noticesText = existsSync(join(root, "THIRD_PARTY_NOTICES.md"))
+  ? readFileSync(join(root, "THIRD_PARTY_NOTICES.md"), "utf8")
+  : "";
 const requirements = readFileSync(join(root, "python-backend", "requirements.txt"), "utf8");
 const requirementsLock = readFileSync(join(root, "python-backend", "requirements.lock.txt"), "utf8");
 
@@ -134,6 +142,14 @@ if (!/^torch==[^\r\n+]+\+cpu$/m.test(requirements)) {
 
 if (!requirementsLock.includes("--generate-hashes") || !requirementsLock.includes("--hash=sha256:")) {
   missing.push("python-backend/requirements.lock.txt must be generated with transitive hashes");
+}
+
+if (!/MIT License/i.test(licenseText)) {
+  missing.push("LICENSE must contain the application license text");
+}
+
+if (!/Kokoro/i.test(noticesText) || !/SBOM/i.test(noticesText)) {
+  missing.push("THIRD_PARTY_NOTICES.md must reference bundled Kokoro assets and generated SBOMs");
 }
 
 if (missing.length > 0) {
