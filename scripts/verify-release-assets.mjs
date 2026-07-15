@@ -202,6 +202,10 @@ const requiredReleaseEvidenceFragments = [
     [
       "Backend ready:",
       "Backend restart succeeded:",
+      "Backend health check failed:",
+      "Backend health check failed repeatedly; restarting backend.",
+      "consecutive_health_failures",
+      "backend_healthcheck(&url, &token",
       "sayit-backend.log",
       "sayit-desktop.log",
     ],

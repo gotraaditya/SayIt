@@ -729,66 +729,119 @@ pub fn run() {
             let monitor_backend_child = Arc::clone(&setup_backend_child);
             let monitor_backend_connection = Arc::clone(&setup_backend_connection);
             let monitor_app = app.handle().clone();
-            thread::spawn(move || loop {
-                thread::sleep(Duration::from_secs(2));
-                let needs_restart = {
-                    let mut child_guard = match monitor_backend_child.lock() {
-                        Ok(guard) => guard,
-                        Err(_) => return,
+            thread::spawn(move || {
+                let mut consecutive_health_failures = 0_u8;
+                loop {
+                    thread::sleep(Duration::from_secs(2));
+                    let mut needs_restart = {
+                        let mut child_guard = match monitor_backend_child.lock() {
+                            Ok(guard) => guard,
+                            Err(_) => return,
+                        };
+                        match child_guard
+                            .as_mut()
+                            .and_then(|child| child.try_wait().ok().flatten())
+                        {
+                            Some(status) => {
+                                eprintln!("SayIt backend exited: {status}");
+                                log_desktop_diagnostic(
+                                    &monitor_app,
+                                    &format!("Backend process exited: {status}"),
+                                );
+                                *child_guard = None;
+                                true
+                            }
+                            None => child_guard.is_none(),
+                        }
                     };
-                    match child_guard.as_mut().and_then(|child| child.try_wait().ok().flatten()) {
-                        Some(status) => {
-                            eprintln!("SayIt backend exited: {status}");
+
+                    if !needs_restart {
+                        let health_target =
+                            monitor_backend_connection.lock().ok().and_then(|backend| {
+                                if backend.available && !backend.url.is_empty() {
+                                    Some((backend.url.clone(), token_for_monitor.clone()))
+                                } else {
+                                    None
+                                }
+                            });
+
+                        if let Some((url, token)) = health_target {
+                            match backend_healthcheck(&url, &token, Duration::from_millis(500)) {
+                                Ok(()) => {
+                                    consecutive_health_failures = 0;
+                                }
+                                Err(error) => {
+                                    consecutive_health_failures =
+                                        consecutive_health_failures.saturating_add(1);
+                                    eprintln!("SayIt backend health check failed: {error}");
+                                    log_desktop_diagnostic(
+                                        &monitor_app,
+                                        &format!(
+                                            "Backend health check failed: {error}; consecutive failures: {consecutive_health_failures}"
+                                        ),
+                                    );
+
+                                    if consecutive_health_failures >= 3 {
+                                        log_desktop_diagnostic(
+                                            &monitor_app,
+                                            "Backend health check failed repeatedly; restarting backend.",
+                                        );
+                                        if let Ok(mut child_guard) = monitor_backend_child.lock() {
+                                            if let Some(ref mut child) = *child_guard {
+                                                terminate_backend(child);
+                                            }
+                                            *child_guard = None;
+                                        }
+                                        consecutive_health_failures = 0;
+                                        needs_restart = true;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        consecutive_health_failures = 0;
+                    }
+
+                    if !needs_restart {
+                        continue;
+                    }
+
+                    if let Ok(mut backend) = monitor_backend_connection.lock() {
+                        backend.available = false;
+                        backend.last_error = "Speech service is restarting.".to_string();
+                    }
+                    let _ = monitor_app.emit("backend_status", "Speech service is restarting.");
+
+                    match spawn_backend(&monitor_app, &token_for_monitor) {
+                        Ok(process) => {
+                            if let Ok(mut child_guard) = monitor_backend_child.lock() {
+                                *child_guard = Some(process.child);
+                            }
+                            if let Ok(mut backend) = monitor_backend_connection.lock() {
+                                backend.url = process.url.clone();
+                                backend.token = token_for_monitor.clone();
+                                backend.available = true;
+                                backend.last_error.clear();
+                            }
+                            let _ = monitor_app.emit("backend_restarted", ());
                             log_desktop_diagnostic(
                                 &monitor_app,
-                                &format!("Backend process exited: {status}"),
+                                &format!("Backend restart succeeded: {}", process.url),
                             );
-                            *child_guard = None;
-                            true
                         }
-                        None => child_guard.is_none(),
-                    }
-                };
-
-                if !needs_restart {
-                    continue;
-                }
-
-                if let Ok(mut backend) = monitor_backend_connection.lock() {
-                    backend.available = false;
-                    backend.last_error = "Speech service is restarting.".to_string();
-                }
-                let _ = monitor_app.emit("backend_status", "Speech service is restarting.");
-
-                match spawn_backend(&monitor_app, &token_for_monitor) {
-                    Ok(process) => {
-                        if let Ok(mut child_guard) = monitor_backend_child.lock() {
-                            *child_guard = Some(process.child);
+                        Err(error) => {
+                            eprintln!("SayIt backend restart failed: {error}");
+                            log_desktop_diagnostic(
+                                &monitor_app,
+                                &format!("Backend restart failed: {error}"),
+                            );
+                            if let Ok(mut backend) = monitor_backend_connection.lock() {
+                                backend.available = false;
+                                backend.last_error = error.clone();
+                            }
+                            let _ = monitor_app.emit("backend_status", error);
+                            thread::sleep(Duration::from_secs(3));
                         }
-                        if let Ok(mut backend) = monitor_backend_connection.lock() {
-                            backend.url = process.url.clone();
-                            backend.token = token_for_monitor.clone();
-                            backend.available = true;
-                            backend.last_error.clear();
-                        }
-                        let _ = monitor_app.emit("backend_restarted", ());
-                        log_desktop_diagnostic(
-                            &monitor_app,
-                            &format!("Backend restart succeeded: {}", process.url),
-                        );
-                    }
-                    Err(error) => {
-                        eprintln!("SayIt backend restart failed: {error}");
-                        log_desktop_diagnostic(
-                            &monitor_app,
-                            &format!("Backend restart failed: {error}"),
-                        );
-                        if let Ok(mut backend) = monitor_backend_connection.lock() {
-                            backend.available = false;
-                            backend.last_error = error.clone();
-                        }
-                        let _ = monitor_app.emit("backend_status", error);
-                        thread::sleep(Duration::from_secs(3));
                     }
                 }
             });
