@@ -15,8 +15,9 @@ SayIt releases must pass these gates before MSI/NSIS artifacts are published.
 9. `powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1`
 10. `npm run generate:release-config`
 11. `npx tauri build --config release\tauri.release.conf.json`
-12. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
-13. `npm run verify:release-readiness`
+12. `npm run verify:release-bundles`
+13. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
+14. `npm run verify:release-readiness`
 
 The tag/manual release workflow in `.github/workflows/release.yml` runs these
 gates on Windows and expects the `release` GitHub environment to provide the
@@ -34,6 +35,10 @@ generated.
 Release readiness also requires a real Git `HEAD` commit. In GitHub Actions it
 checks that `HEAD` matches `GITHUB_SHA`, so published artifacts can be traced
 back to the reviewed source revision.
+
+`npm run verify:release-bundles` runs after Tauri build and rejects stale or
+unsigned release outputs. It requires Windows installers to be at least 50 MB,
+have valid Authenticode signatures, and have signed updater archives.
 
 ## Code Signing
 

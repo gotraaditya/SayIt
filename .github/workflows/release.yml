@@ -106,6 +106,10 @@ jobs:
       - name: Build signed Tauri bundles
         run: npx tauri build --config release\tauri.release.conf.json
 
+      - name: Verify signed release bundles
+        shell: pwsh
+        run: npm run verify:release-bundles
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -10,6 +10,7 @@
     "build:frontend": "tsc && vite build",
     "verify:release-assets": "node scripts/verify-release-assets.mjs",
     "verify:release-readiness": "powershell -ExecutionPolicy Bypass -File scripts/verify-release-readiness.ps1",
+    "verify:release-bundles": "powershell -ExecutionPolicy Bypass -File scripts/verify-release-bundles.ps1",
     "generate:release-config": "powershell -ExecutionPolicy Bypass -File scripts/generate-release-config.ps1",
     "test": "vitest run",
     "preview": "vite preview",
