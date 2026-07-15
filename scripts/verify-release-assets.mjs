@@ -45,6 +45,10 @@ const parsedCapability = JSON.parse(capabilityText.replace(/^\uFEFF/, ""));
 const cargoManifestText = readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8");
 const packageManifestText = readFileSync(join(root, "package.json"), "utf8");
 const packageLockText = readFileSync(join(root, "package-lock.json"), "utf8");
+const backendAppText = readFileSync(join(root, "python-backend", "app.py"), "utf8");
+const tauriLibText = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
+const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-smoke.ps1"), "utf8");
+const releaseReadinessText = readFileSync(join(root, "scripts", "verify-release-readiness.ps1"), "utf8");
 const licenseText = existsSync(join(root, "LICENSE"))
   ? readFileSync(join(root, "LICENSE"), "utf8")
   : "";
@@ -162,6 +166,61 @@ if (existsSync(checksumFile)) {
   for (const relativePath of checksumEntries.keys()) {
     if (!requiredModelFiles.includes(relativePath)) {
       missing.push(`SHA256SUMS.txt contains unexpected bundled asset: ${relativePath}`);
+    }
+  }
+}
+
+const requiredReleaseEvidenceFragments = [
+  [
+    "python-backend/app.py",
+    backendAppText,
+    [
+      "Speech synthesis completed:",
+      "voice=%s",
+    ],
+  ],
+  [
+    "src-tauri/src/lib.rs",
+    tauriLibText,
+    [
+      "Backend ready:",
+      "Backend restart succeeded:",
+      "sayit-backend.log",
+      "sayit-desktop.log",
+    ],
+  ],
+  [
+    "scripts/clean-machine-smoke.ps1",
+    cleanMachineSmokeText,
+    [
+      "DesktopLogPath",
+      "BackendLogPath",
+      "diagnosticLogs",
+      "desktopLogSha256",
+      "backendLogSha256",
+      "Kokoro TTS model loaded.",
+      "voice=$voice",
+      "Backend restart succeeded:",
+    ],
+  ],
+  [
+    "scripts/verify-release-readiness.ps1",
+    releaseReadinessText,
+    [
+      "diagnosticLogs",
+      "desktopLogSha256",
+      "backendLogSha256",
+      "Clean-machine smoke backend diagnostic log is missing voice evidence",
+      "Clean-machine smoke desktop diagnostic log hash no longer matches the report.",
+      "Clean-machine smoke backend diagnostic log hash no longer matches the report.",
+    ],
+  ],
+];
+
+for (const [label, text, fragments] of requiredReleaseEvidenceFragments) {
+  for (const fragment of fragments) {
+    if (!text.includes(fragment)) {
+      missing.push(`${label} is missing release evidence guard: ${fragment}`);
     }
   }
 }
