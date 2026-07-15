@@ -32,6 +32,10 @@ type BackendConfig = {
   token: string;
 };
 
+type StartupStatus = {
+  shortcut_error?: string | null;
+};
+
 const markIntroSeen = () => localStorage.setItem("hasSeenIntro", "true");
 
 const getErrorMessage = (error: unknown) => {
@@ -325,6 +329,13 @@ function App() {
   };
 
   useEffect(() => {
+    let disposed = false;
+    const showShortcutError = (message: string) => {
+      setStatus("error");
+      setStatusMessage("Shortcut unavailable");
+      setErrorCause(message);
+    };
+
     const backendRestarted = listen("backend_restarted", () => {
       backendConfigRef.current = null;
       if (statusRef.current === "error") {
@@ -338,12 +349,20 @@ function App() {
       setErrorCause(event.payload);
     });
     const shortcutError = listen<string>("shortcut_error", (event) => {
-      setStatus("error");
-      setStatusMessage("Shortcut unavailable");
-      setErrorCause(event.payload);
+      showShortcutError(event.payload);
     });
+    invoke<StartupStatus>("get_startup_status")
+      .then((startupStatus) => {
+        if (!disposed && startupStatus.shortcut_error) {
+          showShortcutError(startupStatus.shortcut_error);
+        }
+      })
+      .catch((error) => {
+        console.error("Unable to read SayIt startup status", error);
+      });
 
     return () => {
+      disposed = true;
       backendRestarted.then((dispose) => dispose());
       backendStatus.then((dispose) => dispose());
       shortcutError.then((dispose) => dispose());

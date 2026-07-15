@@ -23,6 +23,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 
 struct AppState {
     current_shortcut: Mutex<Option<Shortcut>>,
+    shortcut_startup_error: Mutex<Option<String>>,
     backend_connection: Arc<Mutex<BackendConnection>>,
 }
 
@@ -39,6 +40,14 @@ struct BackendConfig {
     url: String,
     token: String,
 }
+
+#[derive(Serialize)]
+struct StartupStatus {
+    shortcut_error: Option<String>,
+}
+
+const DEFAULT_SHORTCUT_STARTUP_ERROR: &str =
+    "Default shortcut Alt+S is already in use. Open settings to choose another shortcut.";
 
 #[cfg(target_os = "windows")]
 #[derive(Clone)]
@@ -240,7 +249,20 @@ fn update_shortcut(
     }
 
     *current = Some(parsed);
+    if let Ok(mut shortcut_startup_error) = state.shortcut_startup_error.lock() {
+        *shortcut_startup_error = None;
+    }
     Ok(())
+}
+
+#[tauri::command]
+fn get_startup_status(state: tauri::State<AppState>) -> Result<StartupStatus, String> {
+    let shortcut_error = state
+        .shortcut_startup_error
+        .lock()
+        .map_err(|_| "Startup status is unavailable.".to_string())?
+        .clone();
+    Ok(StartupStatus { shortcut_error })
 }
 
 #[tauri::command]
@@ -636,6 +658,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hide_window,
             update_shortcut,
+            get_startup_status,
             get_backend_config
         ])
         .setup(move |app| {
@@ -693,6 +716,9 @@ pub fn run() {
                     None
                 }
             };
+            let shortcut_startup_error = initial_shortcut
+                .is_none()
+                .then(|| DEFAULT_SHORTCUT_STARTUP_ERROR.to_string());
 
             let token_for_monitor = backend_token.clone();
             match spawn_backend(app.handle(), &backend_token) {
@@ -724,6 +750,7 @@ pub fn run() {
             }
             app.manage(AppState {
                 current_shortcut: Mutex::new(initial_shortcut),
+                shortcut_startup_error: Mutex::new(shortcut_startup_error.clone()),
                 backend_connection: Arc::clone(&setup_backend_connection),
             });
             let monitor_backend_child = Arc::clone(&setup_backend_child);
@@ -852,7 +879,7 @@ pub fn run() {
                     let _ = window.set_focus();
                     let _ = app.emit(
                         "shortcut_error",
-                        "Default shortcut Alt+S is already in use. Open settings to choose another shortcut.",
+                        shortcut_startup_error.as_deref().unwrap_or(DEFAULT_SHORTCUT_STARTUP_ERROR),
                     );
                 }
                 #[cfg(target_os = "windows")]
