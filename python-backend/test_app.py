@@ -172,6 +172,28 @@ class BackendValidationTests(unittest.TestCase):
 
         self.assertTrue(sayit_app.job_is_stale_or_canceled("cancel-job"))
 
+    def test_synthesize_rejects_job_canceled_before_start(self):
+        class FakePipeline:
+            def __call__(self, *_args, **_kwargs):
+                return iter([("text", "phonemes", [0.1])])
+
+        original_pipeline = sayit_app.pipeline
+        sayit_app.pipeline = FakePipeline()
+        sayit_app.cancel_job("pre-canceled-job")
+        try:
+            with self.assertRaises(HTTPException) as context:
+                sayit_app.synthesize(
+                    sayit_app.SynthesizeRequest(
+                        text="hello",
+                        voice="af_heart",
+                        job_id="pre-canceled-job",
+                    )
+                )
+        finally:
+            sayit_app.pipeline = original_pipeline
+
+        self.assertEqual(context.exception.status_code, 409)
+
     def test_cancel_history_is_bounded(self):
         for index in range(sayit_app.CANCELED_JOB_HISTORY_LIMIT + 5):
             sayit_app.cancel_job(f"old-job-{index}")

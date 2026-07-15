@@ -181,7 +181,6 @@ def remember_latest_job(job_id: str) -> None:
     with job_state_lock:
         global latest_job_id
         latest_job_id = job_id
-        canceled_job_ids.discard(job_id)
 
 
 def cancel_job(job_id: str) -> None:
