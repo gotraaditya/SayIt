@@ -74,8 +74,9 @@ builds must pass it to Tauri with `--config`.
 
 `npm run verify:release-readiness` fails if the updater feed still points at a
 placeholder host, if signing secrets are missing or still look like
-placeholders, if SBOMs or vulnerability audit reports are missing, or if the
-clean-machine smoke report has not confirmed the offline/restart/exit checks.
+placeholders, if the Git worktree has tracked uncommitted changes, if SBOMs or
+vulnerability audit reports are missing, or if the clean-machine smoke report
+has not confirmed the offline/restart/exit checks.
 Smoke evidence is tied to the installer hash and size; the smoke script rejects
 non-installer paths and artifacts smaller than the offline backend bundle.
 

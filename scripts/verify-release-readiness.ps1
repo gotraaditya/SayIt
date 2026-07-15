@@ -58,6 +58,13 @@ try {
     } elseif ($env:GITHUB_SHA -and $headCommit -ne $env:GITHUB_SHA) {
       Add-Failure "Git HEAD does not match GITHUB_SHA."
     }
+
+    $dirtyTrackedChanges = (& cmd.exe /c "git status --porcelain --untracked-files=no 2>nul")
+    if ($LASTEXITCODE -ne 0) {
+      Add-Failure "Unable to inspect Git worktree cleanliness."
+    } elseif ($dirtyTrackedChanges) {
+      Add-Failure "Release must be built from a clean Git worktree with no tracked uncommitted changes."
+    }
   }
 } finally {
   Pop-Location
