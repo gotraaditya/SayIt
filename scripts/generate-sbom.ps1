@@ -19,6 +19,7 @@ function Get-RequiredFileHash {
 
 $sbomDir = Join-Path (Resolve-Path .) "release\sbom"
 New-Item -ItemType Directory -Force -Path $sbomDir | Out-Null
+$releaseToolsRequirementsLock = "python-backend\release-tools-requirements.lock.txt"
 
 $sourceCommit = (& cmd.exe /c "git rev-parse --verify HEAD 2>nul")
 if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
@@ -42,7 +43,7 @@ finally {
 if (Test-Path ".packaging\python-sidecar-venv\Scripts\cyclonedx-py.exe") {
   Invoke-Checked .\.packaging\python-sidecar-venv\Scripts\cyclonedx-py.exe environment .\.packaging\python-sidecar-venv\Scripts\python.exe --output-file (Join-Path $sbomDir "python.cdx.json")
 } elseif (Test-Path ".packaging\python-sidecar-venv\Scripts\python.exe") {
-  Invoke-Checked .\.packaging\python-sidecar-venv\Scripts\python.exe -m pip install cyclonedx-bom
+  Invoke-Checked .\.packaging\python-sidecar-venv\Scripts\python.exe -m pip install --require-hashes -r $releaseToolsRequirementsLock
   Invoke-Checked .\.packaging\python-sidecar-venv\Scripts\cyclonedx-py.exe environment .\.packaging\python-sidecar-venv\Scripts\python.exe --output-file (Join-Path $sbomDir "python.cdx.json")
 } else {
   throw "Packaging venv is missing; run scripts/build-python-sidecar.ps1 before Python SBOM generation."
@@ -56,6 +57,7 @@ $provenance = [ordered]@{
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
     packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
+    releaseToolsRequirementsLockSha256 = Get-RequiredFileHash "python-backend\release-tools-requirements.lock.txt"
   }
 }
 

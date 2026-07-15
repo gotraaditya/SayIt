@@ -72,9 +72,10 @@ finally {
 }
 
 $python = Resolve-PythonForAudit
-& $python -m pip install --upgrade pip-audit
+$releaseToolsRequirementsLock = "python-backend\release-tools-requirements.lock.txt"
+& $python -m pip install --require-hashes -r $releaseToolsRequirementsLock
 if ($LASTEXITCODE -ne 0) {
-  throw "pip-audit installation failed with exit code $LASTEXITCODE"
+  throw "release audit tool installation failed with exit code $LASTEXITCODE"
 }
 
 & $python -m pip_audit -r python-backend\requirements.lock.txt --format json --output (Join-Path $auditDir "python-audit.json")
@@ -87,6 +88,11 @@ if ($LASTEXITCODE -ne 0) {
   throw "packaging pip-audit failed with exit code $LASTEXITCODE"
 }
 
+& $python -m pip_audit -r $releaseToolsRequirementsLock --format json --output (Join-Path $auditDir "python-release-tools-audit.json")
+if ($LASTEXITCODE -ne 0) {
+  throw "release tools pip-audit failed with exit code $LASTEXITCODE"
+}
+
 $provenance = [ordered]@{
   generatedAt = (Get-Date).ToUniversalTime().ToString("o")
   sourceCommit = $sourceCommit
@@ -95,6 +101,7 @@ $provenance = [ordered]@{
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
     packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
+    releaseToolsRequirementsLockSha256 = Get-RequiredFileHash "python-backend\release-tools-requirements.lock.txt"
   }
 }
 

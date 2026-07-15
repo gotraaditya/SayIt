@@ -20,6 +20,7 @@ $runtimeDir = Join-Path $root "python-backend-runtime"
 $buildVenv = Join-Path $root ".packaging\python-sidecar-venv"
 $requirementsLock = Join-Path $backendDir "requirements.lock.txt"
 $packagingRequirementsLock = Join-Path $backendDir "packaging-requirements.lock.txt"
+$releaseToolsRequirementsLock = Join-Path $backendDir "release-tools-requirements.lock.txt"
 $requiredVoices = @(
   "af_alloy",
   "af_bella",
@@ -42,13 +43,16 @@ if (-not (Test-Path $requirementsLock)) {
 if (-not (Test-Path $packagingRequirementsLock)) {
   throw "Missing $packagingRequirementsLock. Packaging tools must be pinned with hashes before release."
 }
+if (-not (Test-Path $releaseToolsRequirementsLock)) {
+  throw "Missing $releaseToolsRequirementsLock. Release tools must be pinned with hashes before release."
+}
 
 if (-not (Test-Path $buildVenv)) {
   Invoke-Checked $Python -m venv $buildVenv
 }
 
 $venvPython = Join-Path $buildVenv "Scripts\python.exe"
-Invoke-Checked $venvPython -m pip install --upgrade pip
+Invoke-Checked $venvPython -m pip install --require-hashes -r $releaseToolsRequirementsLock
 Invoke-Checked $venvPython -m pip install --require-hashes -r $requirementsLock
 Invoke-Checked $venvPython -m pip install --require-hashes -r $packagingRequirementsLock
 

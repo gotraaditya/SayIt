@@ -381,6 +381,7 @@ if ($sbomProvenance) {
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
     packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
+    releaseToolsRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\release-tools-requirements.lock.txt")
   }
 
   foreach ($name in $expectedSbomInputs.Keys) {
@@ -416,6 +417,7 @@ if ($auditProvenance) {
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
     packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
+    releaseToolsRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\release-tools-requirements.lock.txt")
   }
 
   foreach ($name in $expectedAuditInputs.Keys) {
@@ -469,6 +471,17 @@ if ($pythonPackagingAudit) {
   )
   if ($pythonPackagingVulnerabilities.Count -gt 0) {
     Add-Failure "Python packaging audit report contains known vulnerabilities."
+  }
+}
+
+$pythonReleaseToolsAudit = Read-JsonEvidence (Join-Path $auditDir "python-release-tools-audit.json") "vulnerability audit report"
+if ($pythonReleaseToolsAudit) {
+  $pythonReleaseToolsVulnerabilities = @(
+    $pythonReleaseToolsAudit.dependencies |
+      Where-Object { $_.vulns -and @($_.vulns).Count -gt 0 }
+  )
+  if ($pythonReleaseToolsVulnerabilities.Count -gt 0) {
+    Add-Failure "Python release tools audit report contains known vulnerabilities."
   }
 }
 

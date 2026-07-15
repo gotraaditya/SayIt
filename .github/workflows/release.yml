@@ -82,7 +82,7 @@ jobs:
         shell: pwsh
         run: |
           python -m venv python-backend\venv
-          python-backend\venv\Scripts\python.exe -m pip install --upgrade pip
+          python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\release-tools-requirements.lock.txt
           python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
           python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"
 

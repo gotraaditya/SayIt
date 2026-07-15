@@ -66,6 +66,10 @@ const packagingRequirementsLockPath = join(root, "python-backend", "packaging-re
 const packagingRequirementsLock = existsSync(packagingRequirementsLockPath)
   ? readFileSync(packagingRequirementsLockPath, "utf8")
   : "";
+const releaseToolsRequirementsLockPath = join(root, "python-backend", "release-tools-requirements.lock.txt");
+const releaseToolsRequirementsLock = existsSync(releaseToolsRequirementsLockPath)
+  ? readFileSync(releaseToolsRequirementsLockPath, "utf8")
+  : "";
 const buildPythonSidecarText = readFileSync(join(root, "scripts", "build-python-sidecar.ps1"), "utf8");
 const auditSecurityText = readFileSync(join(root, "scripts", "audit-security.ps1"), "utf8");
 const generateSbomText = readFileSync(join(root, "scripts", "generate-sbom.ps1"), "utf8");
@@ -244,7 +248,9 @@ const requiredReleaseEvidenceFragments = [
       "TAURI_SIGNING_PRIVATE_KEY_PATH",
       "[IO.Path]::IsPathRooted($ConfigPath)",
       "packagingRequirementsLockSha256",
+      "releaseToolsRequirementsLockSha256",
       "python-packaging-audit.json",
+      "python-release-tools-audit.json",
     ],
   ],
   [
@@ -252,7 +258,9 @@ const requiredReleaseEvidenceFragments = [
     buildPythonSidecarText,
     [
       "packaging-requirements.lock.txt",
+      "release-tools-requirements.lock.txt",
       "pip install --require-hashes -r $packagingRequirementsLock",
+      "pip install --require-hashes -r $releaseToolsRequirementsLock",
     ],
   ],
   [
@@ -260,8 +268,11 @@ const requiredReleaseEvidenceFragments = [
     auditSecurityText,
     [
       "python-packaging-audit.json",
+      "python-release-tools-audit.json",
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
+      "release-tools-requirements.lock.txt",
+      "releaseToolsRequirementsLockSha256",
     ],
   ],
   [
@@ -270,6 +281,8 @@ const requiredReleaseEvidenceFragments = [
     [
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
+      "release-tools-requirements.lock.txt",
+      "releaseToolsRequirementsLockSha256",
     ],
   ],
   [
@@ -317,6 +330,7 @@ const requiredReleaseEvidenceFragments = [
     ciWorkflowText,
     [
       "npm run test:release-scripts",
+      "release-tools-requirements.lock.txt",
     ],
   ],
   [
@@ -324,6 +338,7 @@ const requiredReleaseEvidenceFragments = [
     releaseWorkflowText,
     [
       "npm run test:release-scripts",
+      "release-tools-requirements.lock.txt",
     ],
   ],
 ];
@@ -379,6 +394,43 @@ if (!packagingRequirementsLock) {
 
   if (!packagingRequirementsLock.includes("--hash=sha256:")) {
     missing.push("python-backend/packaging-requirements.lock.txt must use hashes");
+  }
+}
+
+if (!releaseToolsRequirementsLock) {
+  missing.push("python-backend/release-tools-requirements.lock.txt must exist");
+} else {
+  for (const packageName of [
+    "pip",
+    "pip-audit",
+    "cyclonedx-bom",
+    "cyclonedx-python-lib",
+    "cachecontrol",
+    "requests",
+  ]) {
+    const pattern = new RegExp(`^${packageName}==`, "im");
+    if (!pattern.test(releaseToolsRequirementsLock)) {
+      missing.push(`python-backend/release-tools-requirements.lock.txt must pin ${packageName}`);
+    }
+  }
+
+  if (!releaseToolsRequirementsLock.includes("--hash=sha256:")) {
+    missing.push("python-backend/release-tools-requirements.lock.txt must use hashes");
+  }
+}
+
+for (const [label, text] of [
+  ["scripts/build-python-sidecar.ps1", buildPythonSidecarText],
+  ["scripts/audit-security.ps1", auditSecurityText],
+  ["scripts/generate-sbom.ps1", generateSbomText],
+  [".github/workflows/ci.yml", ciWorkflowText],
+  [".github/workflows/release.yml", releaseWorkflowText],
+]) {
+  if (/pip\s+install\s+--upgrade/i.test(text)) {
+    missing.push(`${label} must not upgrade pip or release Python tools without hashes`);
+  }
+  if (/pip\s+install\s+(?!.*--require-hashes)/i.test(text)) {
+    missing.push(`${label} must use --require-hashes for pip installs`);
   }
 }
 
