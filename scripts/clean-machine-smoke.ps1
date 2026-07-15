@@ -40,6 +40,11 @@ if ($installer.Length -lt $minimumInstallerBytes) {
   throw "Installer is too small to contain SayIt's offline backend resources: $($installer.Length) bytes"
 }
 
+$installerSignature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+if ($installerSignature.Status -ne "Valid") {
+  throw "Clean-machine smoke must be recorded against a validly signed installer: $($installerSignature.Status)"
+}
+
 $checks = [ordered]@{
   freshMachine = [bool]$FreshMachine
   installedSuccessfully = [bool]$InstalledSuccessfully
@@ -73,6 +78,7 @@ $report = [ordered]@{
   installerPath = $installer.FullName
   installerSize = $installer.Length
   installerSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+  installerSignatureStatus = $installerSignature.Status.ToString()
   checks = $checks
 }
 

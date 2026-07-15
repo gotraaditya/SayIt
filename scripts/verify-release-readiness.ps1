@@ -273,6 +273,13 @@ if (-not $SkipCleanMachineSmoke) {
       if ($installerHash -ne $smokeReport.installerSha256) {
         Add-Failure "Clean-machine smoke installer hash no longer matches the report."
       }
+      $installerSignature = Get-AuthenticodeSignature -LiteralPath $installer.FullName
+      if ($installerSignature.Status -ne "Valid") {
+        Add-Failure "Clean-machine smoke installer Authenticode signature is not valid: $($installerSignature.Status)"
+      }
+      if ($smokeReport.installerSignatureStatus -ne "Valid") {
+        Add-Failure "Clean-machine smoke report did not record a valid installer signature."
+      }
     }
 
     foreach ($property in @(

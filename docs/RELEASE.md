@@ -84,7 +84,9 @@ clean-machine smoke report has not confirmed the offline/restart/exit checks.
 Smoke evidence is tied to the installer hash and size; the smoke script rejects
 non-installer paths and artifacts smaller than the offline backend bundle. It
 also records the Git commit used for the build, and release readiness rejects
-smoke reports whose `sourceCommit` does not match the current `HEAD`.
+smoke reports whose `sourceCommit` does not match the current `HEAD`. Smoke
+evidence must be recorded against the signed installer; unsigned installers are
+rejected by both the smoke script and release readiness.
 
 ## Release Channels
 
