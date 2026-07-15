@@ -1,4 +1,10 @@
-export type AppStatus = "ready" | "loading" | "reading" | "saved" | "error";
+export type AppStatus =
+  | "ready"
+  | "loading"
+  | "reading"
+  | "updating"
+  | "saved"
+  | "error";
 export type SurfaceMode = "glass" | "solid";
 
 export type SettingsUpdate = {

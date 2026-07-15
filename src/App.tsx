@@ -25,6 +25,7 @@ import {
   splitTextForSynthesis,
 } from "./textProcessing";
 import type { AppStatus, SayItWindow, SettingsUpdate, SurfaceMode } from "./types";
+import { installStartupUpdate } from "./updateFlow";
 
 type BackendConfig = {
   url: string;
@@ -353,14 +354,29 @@ function App() {
     if (isSettingsWindow) return;
 
     let disposed = false;
-    checkForUpdate({ timeout: 5000 })
-      .then((update) => {
-        if (disposed || !update) return;
+    installStartupUpdate(checkForUpdate, (updateStatus) => {
+      if (disposed) return;
+      if (updateStatus.state === "available") {
+        setStatus("updating");
+        setStatusMessage(`Installing SayIt ${updateStatus.version}`);
+        setErrorCause("");
         console.info(
-          `SayIt update available: ${update.currentVersion} -> ${update.version}`,
+          `SayIt update available: ${updateStatus.currentVersion} -> ${updateStatus.version}`,
         );
+        return;
+      }
+
+      setStatus("saved");
+      setStatusMessage("Update installed. Restart SayIt.");
+      setErrorCause("");
+    })
+      .then((installed) => {
+        if (!disposed && installed) {
+          console.info("SayIt update installed; restart required.");
+        }
       })
       .catch((error) => {
+        if (disposed) return;
         console.info("SayIt update check skipped or failed", error);
       });
 
@@ -974,6 +990,7 @@ function App() {
     ready: "Ready",
     loading: "Preparing",
     reading: "Reading",
+    updating: "Updating",
     saved: "Saved",
     error: "Needs attention",
   }[status];

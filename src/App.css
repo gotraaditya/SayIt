@@ -149,6 +149,7 @@ input:focus-visible {
 }
 
 .status-loading,
+.status-updating,
 .status-reading {
   background: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);

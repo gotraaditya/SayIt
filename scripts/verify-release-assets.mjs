@@ -48,6 +48,8 @@ const packageLockText = readFileSync(join(root, "package-lock.json"), "utf8");
 const ciWorkflowText = readFileSync(join(root, ".github", "workflows", "ci.yml"), "utf8");
 const releaseWorkflowText = readFileSync(join(root, ".github", "workflows", "release.yml"), "utf8");
 const backendAppText = readFileSync(join(root, "python-backend", "app.py"), "utf8");
+const appFrontendText = readFileSync(join(root, "src", "App.tsx"), "utf8");
+const updateFlowText = readFileSync(join(root, "src", "updateFlow.ts"), "utf8");
 const tauriLibText = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
 const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-smoke.ps1"), "utf8");
 const releaseReadinessText = readFileSync(join(root, "scripts", "verify-release-readiness.ps1"), "utf8");
@@ -202,6 +204,23 @@ const requiredReleaseEvidenceFragments = [
       "backend_degraded()",
       "TTS service needs restart.",
       "inference_lock.release()",
+    ],
+  ],
+  [
+    "src/updateFlow.ts",
+    updateFlowText,
+    [
+      "downloadAndInstall",
+      "installStartupUpdate",
+      "currentVersion",
+    ],
+  ],
+  [
+    "src/App.tsx",
+    appFrontendText,
+    [
+      "installStartupUpdate(checkForUpdate",
+      "Update installed. Restart SayIt.",
     ],
   ],
   [
