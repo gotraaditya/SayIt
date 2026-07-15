@@ -4,6 +4,7 @@ $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $generateReleaseConfig = Join-Path $root "scripts\generate-release-config.ps1"
 $signWindows = Join-Path $root "scripts\sign-windows.ps1"
 $verifyReleaseReadiness = Join-Path $root "scripts\verify-release-readiness.ps1"
+$verifyReleaseBundles = Join-Path $root "scripts\verify-release-bundles.ps1"
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) "sayit-release-script-tests-$([Guid]::NewGuid())"
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
@@ -120,6 +121,22 @@ function Invoke-ReleaseReadinessWithUpdaterKey {
   }
 }
 
+function Invoke-VerifyReleaseBundles {
+  param([string]$BundleDir)
+
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseBundles -BundleDir $BundleDir 2>&1 | Out-String
+    return [pscustomobject]@{
+      ExitCode = $LASTEXITCODE
+      Output = $output
+    }
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+}
+
 try {
   $invalidEndpoints = @(
     "http://updates.sayit.example.com/releases/latest.json",
@@ -215,6 +232,16 @@ try {
   $publicUpdaterKeyFileResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey -UseKeyFile
   if ($publicUpdaterKeyFileResult.ExitCode -eq 0 -or -not $publicUpdaterKeyFileResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY_PATH must be a private updater signing key")) {
     throw "Expected public updater key file to be rejected."
+  }
+
+  $absoluteMissingBundleDir = Join-Path $tempDir "missing-bundles"
+  $bundleResult = Invoke-VerifyReleaseBundles $absoluteMissingBundleDir
+  if (
+    $bundleResult.ExitCode -eq 0 -or
+    -not $bundleResult.Output.Contains("Bundle directory does not exist:") -or
+    -not $bundleResult.Output.Contains($absoluteMissingBundleDir)
+  ) {
+    throw "Expected release bundle verifier to preserve absolute BundleDir paths."
   }
 
   Write-Host "Release script tests passed."

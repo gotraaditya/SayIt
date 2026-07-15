@@ -11,7 +11,11 @@ function Add-Failure {
 
 $failures = @()
 $minimumInstallerBytes = 50MB
-$resolvedBundleDir = [IO.Path]::GetFullPath((Join-Path (Get-Location) $BundleDir))
+if ([IO.Path]::IsPathRooted($BundleDir)) {
+  $resolvedBundleDir = [IO.Path]::GetFullPath($BundleDir)
+} else {
+  $resolvedBundleDir = [IO.Path]::GetFullPath((Join-Path (Get-Location) $BundleDir))
+}
 
 if (-not (Test-Path -LiteralPath $resolvedBundleDir)) {
   Add-Failure "Bundle directory does not exist: $resolvedBundleDir"

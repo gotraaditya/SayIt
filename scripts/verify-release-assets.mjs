@@ -53,6 +53,7 @@ const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-
 const releaseReadinessText = readFileSync(join(root, "scripts", "verify-release-readiness.ps1"), "utf8");
 const signWindowsText = readFileSync(join(root, "scripts", "sign-windows.ps1"), "utf8");
 const releaseScriptTestsText = readFileSync(join(root, "scripts", "test-release-scripts.ps1"), "utf8");
+const releaseBundleVerifierText = readFileSync(join(root, "scripts", "verify-release-bundles.ps1"), "utf8");
 const licenseText = existsSync(join(root, "LICENSE"))
   ? readFileSync(join(root, "LICENSE"), "utf8")
   : "";
@@ -236,6 +237,14 @@ const requiredReleaseEvidenceFragments = [
     ],
   ],
   [
+    "scripts/verify-release-bundles.ps1",
+    releaseBundleVerifierText,
+    [
+      "[IO.Path]::IsPathRooted($BundleDir)",
+      "Bundle directory does not exist:",
+    ],
+  ],
+  [
     "scripts/test-release-scripts.ps1",
     releaseScriptTestsText,
     [
@@ -246,6 +255,7 @@ const requiredReleaseEvidenceFragments = [
       "Expected placeholder updater key text to be rejected.",
       "Expected public updater key file to be rejected.",
       "Expected readiness to load the absolute ConfigPath override.",
+      "Expected release bundle verifier to preserve absolute BundleDir paths.",
     ],
   ],
   [
