@@ -227,6 +227,45 @@ def render_audio(generator: Iterable[tuple[object, object, object]], job_id: str
     raise HTTPException(status_code=500, detail="No audio generated.")
 
 
+def render_speech_with_deadline(text: str, voice: str, job_id: str) -> io.BytesIO:
+    completed = threading.Event()
+    result: dict[str, object] = {}
+
+    def worker() -> None:
+        try:
+            if job_is_stale_or_canceled(job_id):
+                raise HTTPException(status_code=409, detail="Synthesis job was superseded.")
+            result["audio_buffer"] = render_audio(
+                pipeline(text, voice=voice, speed=1.0),
+                job_id,
+            )
+        except BaseException as error:
+            result["error"] = error
+        finally:
+            inference_lock.release()
+            completed.set()
+
+    worker_thread = threading.Thread(target=worker, name=f"sayit-synthesis-{job_id[:8]}", daemon=True)
+    try:
+        worker_thread.start()
+    except Exception:
+        inference_lock.release()
+        raise
+
+    if not completed.wait(INFERENCE_DEADLINE_SECONDS):
+        cancel_job(job_id)
+        raise HTTPException(status_code=504, detail="Speech synthesis timed out.")
+
+    error = result.get("error")
+    if error:
+        raise error
+
+    audio_buffer = result.get("audio_buffer")
+    if not isinstance(audio_buffer, io.BytesIO):
+        raise HTTPException(status_code=500, detail="No audio generated.")
+    return audio_buffer
+
+
 configure_logging()
 app = create_app()
 pipeline = load_pipeline()
@@ -267,12 +306,7 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
         raise HTTPException(status_code=429, detail="Speech synthesis is already running.")
 
     try:
-        if job_is_stale_or_canceled(request.job_id):
-            raise HTTPException(status_code=409, detail="Synthesis job was superseded.")
-        audio_buffer = render_audio(
-            pipeline(text, voice=voice, speed=1.0),
-            request.job_id,
-        )
+        audio_buffer = render_speech_with_deadline(text, voice, request.job_id)
         LOGGER.info(
             "Speech synthesis completed: job_id=%s voice=%s chars=%s",
             request.job_id,
@@ -284,8 +318,6 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
     except Exception:
         LOGGER.exception("Speech synthesis failed.")
         raise HTTPException(status_code=500, detail="Speech synthesis failed.")
-    finally:
-        inference_lock.release()
 
     return StreamingResponse(audio_buffer, media_type="audio/wav")
 

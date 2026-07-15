@@ -1,4 +1,5 @@
 import os
+import time
 import wave
 import unittest
 from fastapi import HTTPException
@@ -12,6 +13,16 @@ import app as sayit_app
 
 def request(text: str, voice: str = "af_heart", job_id: str = "test-job"):
     return sayit_app.SynthesizeRequest(text=text, voice=voice, job_id=job_id)
+
+
+def wait_for_inference_lock_release(timeout_seconds: float = 1.0):
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if sayit_app.inference_lock.acquire(blocking=False):
+            sayit_app.inference_lock.release()
+            return
+        time.sleep(0.01)
+    raise AssertionError("inference lock was not released before the test deadline")
 
 
 class BackendValidationTests(unittest.TestCase):
@@ -262,6 +273,33 @@ class BackendValidationTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 429)
         self.assertTrue(sayit_app.job_is_stale_or_canceled("running-job"))
         self.assertFalse(sayit_app.job_is_stale_or_canceled("busy-job"))
+
+    def test_synthesize_timeout_keeps_inference_slot_busy_until_worker_exits(self):
+        class SlowPipeline:
+            def __call__(self, *_args, **_kwargs):
+                time.sleep(0.2)
+                return iter([("text", "phonemes", [0.1])])
+
+        original_pipeline = sayit_app.pipeline
+        original_deadline = sayit_app.INFERENCE_DEADLINE_SECONDS
+        sayit_app.pipeline = SlowPipeline()
+        sayit_app.INFERENCE_DEADLINE_SECONDS = 0.01
+        try:
+            with self.assertRaises(HTTPException) as context:
+                sayit_app.synthesize(
+                    sayit_app.SynthesizeRequest(
+                        text="hello",
+                        voice="af_heart",
+                        job_id="timeout-worker-job",
+                    )
+                )
+
+            self.assertEqual(context.exception.status_code, 504)
+            self.assertFalse(sayit_app.inference_lock.acquire(blocking=False))
+        finally:
+            sayit_app.pipeline = original_pipeline
+            sayit_app.INFERENCE_DEADLINE_SECONDS = original_deadline
+            wait_for_inference_lock_release()
 
 
 if __name__ == "__main__":
