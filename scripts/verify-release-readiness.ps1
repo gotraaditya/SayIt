@@ -289,7 +289,11 @@ Test-TextEvidence (Join-Path $root ".github\workflows\release.yml") "Release wor
 )
 
 if ($ConfigPath) {
-  $resolvedConfigPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $ConfigPath))
+  if ([IO.Path]::IsPathRooted($ConfigPath)) {
+    $resolvedConfigPath = [IO.Path]::GetFullPath($ConfigPath)
+  } else {
+    $resolvedConfigPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $ConfigPath))
+  }
   if (-not (Test-Path -LiteralPath $resolvedConfigPath)) {
     Add-Failure "Release config override does not exist: $resolvedConfigPath"
   } else {

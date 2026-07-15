@@ -222,6 +222,7 @@ const requiredReleaseEvidenceFragments = [
       "Test-UpdaterSigningPrivateKey",
       "must be a private updater signing key, not a public key.",
       "TAURI_SIGNING_PRIVATE_KEY_PATH",
+      "[IO.Path]::IsPathRooted($ConfigPath)",
     ],
   ],
   [
@@ -244,6 +245,7 @@ const requiredReleaseEvidenceFragments = [
       "Expected public updater key text to be rejected.",
       "Expected placeholder updater key text to be rejected.",
       "Expected public updater key file to be rejected.",
+      "Expected readiness to load the absolute ConfigPath override.",
     ],
   ],
   [

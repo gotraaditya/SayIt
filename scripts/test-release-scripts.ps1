@@ -152,6 +152,32 @@ try {
     throw "Generated release config did not contain the validated updater endpoint."
   }
 
+  $absoluteReleaseConfigPath = Join-Path $tempDir "absolute.tauri.release.conf.json"
+  $previousEndpoint = $env:SAYIT_UPDATE_ENDPOINT
+  $env:SAYIT_UPDATE_ENDPOINT = $validEndpoint
+  try {
+    $ErrorActionPreference = "Continue"
+    powershell -NoProfile -ExecutionPolicy Bypass -File $generateReleaseConfig -OutputPath $absoluteReleaseConfigPath *> $null
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $absoluteReleaseConfigPath)) {
+      throw "Expected release config generation to support absolute OutputPath."
+    }
+
+    $readinessOutput = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness -SkipCleanMachineSmoke -ConfigPath $absoluteReleaseConfigPath 2>&1 | Out-String
+    if ($LASTEXITCODE -eq 0) {
+      throw "Expected readiness to fail without signing secrets while accepting absolute ConfigPath."
+    }
+    if ($readinessOutput.Contains("Updater endpoints are missing.") -or $readinessOutput.Contains("Release config override does not exist")) {
+      throw "Expected readiness to load the absolute ConfigPath override."
+    }
+  } finally {
+    $ErrorActionPreference = "Stop"
+    if ($null -eq $previousEndpoint) {
+      Remove-Item Env:\SAYIT_UPDATE_ENDPOINT -ErrorAction SilentlyContinue
+    } else {
+      $env:SAYIT_UPDATE_ENDPOINT = $previousEndpoint
+    }
+  }
+
   $validThumbprint = "0123456789abcdef0123456789abcdef01234567"
   $invalidTimestampUrls = @(
     "ftp://timestamp.example.org",
