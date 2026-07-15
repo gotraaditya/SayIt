@@ -51,6 +51,8 @@ const backendAppText = readFileSync(join(root, "python-backend", "app.py"), "utf
 const tauriLibText = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
 const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-smoke.ps1"), "utf8");
 const releaseReadinessText = readFileSync(join(root, "scripts", "verify-release-readiness.ps1"), "utf8");
+const signWindowsText = readFileSync(join(root, "scripts", "sign-windows.ps1"), "utf8");
+const releaseScriptTestsText = readFileSync(join(root, "scripts", "test-release-scripts.ps1"), "utf8");
 const licenseText = existsSync(join(root, "LICENSE"))
   ? readFileSync(join(root, "LICENSE"), "utf8")
   : "";
@@ -215,6 +217,27 @@ const requiredReleaseEvidenceFragments = [
       "Clean-machine smoke backend diagnostic log is missing voice evidence",
       "Clean-machine smoke desktop diagnostic log hash no longer matches the report.",
       "Clean-machine smoke backend diagnostic log hash no longer matches the report.",
+      "Test-ProductionTimestampUrl",
+      "Signing timestamp URL must not point at a local, private, or reserved IP address.",
+    ],
+  ],
+  [
+    "scripts/sign-windows.ps1",
+    signWindowsText,
+    [
+      "Assert-ProductionTimestampUrl",
+      "SAYIT_SIGN_TIMESTAMP_URL must not point at a local, private, or reserved IP address.",
+      "SAYIT_SIGN_CERT_PATH must point to a .pfx or .p12 certificate bundle.",
+      "SAYIT_SIGN_CERT_THUMBPRINT must be a 40-character SHA-1 certificate thumbprint.",
+    ],
+  ],
+  [
+    "scripts/test-release-scripts.ps1",
+    releaseScriptTestsText,
+    [
+      "invalidTimestampUrls",
+      "Expected signing timestamp URL to be rejected before signtool",
+      "Expected invalid signing thumbprint to be rejected before signtool.",
     ],
   ],
   [

@@ -141,6 +141,46 @@ function Test-ProductionUpdaterEndpoint {
   return $endpointFailures
 }
 
+function Test-ProductionTimestampUrl {
+  param([string]$TimestampUrl)
+
+  $timestampFailures = @()
+  $uri = $null
+  if (-not [System.Uri]::TryCreate($TimestampUrl, [System.UriKind]::Absolute, [ref]$uri)) {
+    return @("Signing timestamp URL must be an absolute HTTP or HTTPS URL.")
+  }
+
+  if ($uri.Scheme -notin @([System.Uri]::UriSchemeHttp, [System.Uri]::UriSchemeHttps)) {
+    $timestampFailures += "Signing timestamp URL must use HTTP or HTTPS."
+  }
+
+  if ($uri.UserInfo) {
+    $timestampFailures += "Signing timestamp URL must not contain embedded credentials."
+  }
+
+  if ($uri.Fragment) {
+    $timestampFailures += "Signing timestamp URL must not contain a URL fragment."
+  }
+
+  if ($TimestampUrl -match "\s") {
+    $timestampFailures += "Signing timestamp URL must not contain whitespace."
+  }
+
+  $uriHost = $uri.Host
+  if (-not $uriHost -or $uriHost -notmatch "\.") {
+    $timestampFailures += "Signing timestamp URL must use a production fully-qualified host."
+  } elseif ($uriHost -match "(^|[.])example\.(com|net|org)$|\.example$|(^|[.])localhost$|\.local(domain)?$|\.test$|\.invalid$") {
+    $timestampFailures += "Signing timestamp URL must not point at a placeholder or local host."
+  }
+
+  $ipAddress = $null
+  if ([System.Net.IPAddress]::TryParse($uriHost, [ref]$ipAddress) -and (Test-PrivateOrLocalIpAddress $ipAddress)) {
+    $timestampFailures += "Signing timestamp URL must not point at a local, private, or reserved IP address."
+  }
+
+  return $timestampFailures
+}
+
 $failures = @()
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
@@ -242,6 +282,8 @@ if ($env:SAYIT_SIGN_CERT_PATH) {
     Add-Failure "SAYIT_SIGN_CERT_PATH does not exist: $env:SAYIT_SIGN_CERT_PATH"
   } elseif ((Get-Item -LiteralPath $env:SAYIT_SIGN_CERT_PATH).Length -le 0) {
     Add-Failure "SAYIT_SIGN_CERT_PATH points to an empty file."
+  } elseif ([IO.Path]::GetExtension($env:SAYIT_SIGN_CERT_PATH) -notin @(".pfx", ".p12")) {
+    Add-Failure "SAYIT_SIGN_CERT_PATH must point to a .pfx or .p12 certificate bundle."
   }
 } elseif ($env:SAYIT_SIGN_CERT_THUMBPRINT) {
   if ($env:SAYIT_SIGN_CERT_THUMBPRINT -notmatch "^[0-9A-Fa-f]{40}$") {
@@ -249,6 +291,12 @@ if ($env:SAYIT_SIGN_CERT_PATH) {
   }
 } else {
   Add-Failure "Set SAYIT_SIGN_CERT_PATH or SAYIT_SIGN_CERT_THUMBPRINT for release signing."
+}
+
+if ($env:SAYIT_SIGN_TIMESTAMP_URL) {
+  foreach ($timestampFailure in (Test-ProductionTimestampUrl $env:SAYIT_SIGN_TIMESTAMP_URL)) {
+    Add-Failure $timestampFailure
+  }
 }
 
 if ($env:TAURI_SIGNING_PRIVATE_KEY_PATH) {

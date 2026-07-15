@@ -53,6 +53,9 @@ certificate supplied by CI secrets. `src-tauri/tauri.conf.json` routes Windows
 binary signing through `scripts/sign-windows.ps1`, which fails closed unless
 signing material is present or `SAYIT_ALLOW_UNSIGNED=1` is explicitly set for a
 local-only build.
+Signing validation rejects malformed certificate thumbprints, empty or
+non-`.pfx`/`.p12` certificate files, and timestamp URLs that contain credentials,
+fragments, placeholders, local hosts, or local/private/reserved IP addresses.
 
 - `SAYIT_SIGN_CERT_PATH`
 - `SAYIT_SIGN_CERT_BASE64`

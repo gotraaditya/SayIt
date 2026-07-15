@@ -2,6 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $generateReleaseConfig = Join-Path $root "scripts\generate-release-config.ps1"
+$signWindows = Join-Path $root "scripts\sign-windows.ps1"
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) "sayit-release-script-tests-$([Guid]::NewGuid())"
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
@@ -21,6 +22,57 @@ function Invoke-GenerateReleaseConfig {
       Remove-Item Env:\SAYIT_UPDATE_ENDPOINT -ErrorAction SilentlyContinue
     } else {
       $env:SAYIT_UPDATE_ENDPOINT = $previousEndpoint
+    }
+  }
+}
+
+function Invoke-SignWindows {
+  param(
+    [string]$TimestampUrl,
+    [string]$Thumbprint
+  )
+
+  $previousTimestampUrl = $env:SAYIT_SIGN_TIMESTAMP_URL
+  $previousThumbprint = $env:SAYIT_SIGN_CERT_THUMBPRINT
+  $previousCertPath = $env:SAYIT_SIGN_CERT_PATH
+  $previousAllowUnsigned = $env:SAYIT_ALLOW_UNSIGNED
+  $previousErrorActionPreference = $ErrorActionPreference
+  $binaryPath = Join-Path $tempDir "fake-sayit.exe"
+  Set-Content -Encoding ascii -Path $binaryPath -Value "not a real executable"
+
+  $env:SAYIT_SIGN_TIMESTAMP_URL = $TimestampUrl
+  $env:SAYIT_SIGN_CERT_THUMBPRINT = $Thumbprint
+  Remove-Item Env:\SAYIT_SIGN_CERT_PATH -ErrorAction SilentlyContinue
+  Remove-Item Env:\SAYIT_ALLOW_UNSIGNED -ErrorAction SilentlyContinue
+
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $signWindows -BinaryPath $binaryPath 2>&1 | Out-String
+    return [pscustomobject]@{
+      ExitCode = $LASTEXITCODE
+      Output = $output
+    }
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($null -eq $previousTimestampUrl) {
+      Remove-Item Env:\SAYIT_SIGN_TIMESTAMP_URL -ErrorAction SilentlyContinue
+    } else {
+      $env:SAYIT_SIGN_TIMESTAMP_URL = $previousTimestampUrl
+    }
+    if ($null -eq $previousThumbprint) {
+      Remove-Item Env:\SAYIT_SIGN_CERT_THUMBPRINT -ErrorAction SilentlyContinue
+    } else {
+      $env:SAYIT_SIGN_CERT_THUMBPRINT = $previousThumbprint
+    }
+    if ($null -eq $previousCertPath) {
+      Remove-Item Env:\SAYIT_SIGN_CERT_PATH -ErrorAction SilentlyContinue
+    } else {
+      $env:SAYIT_SIGN_CERT_PATH = $previousCertPath
+    }
+    if ($null -eq $previousAllowUnsigned) {
+      Remove-Item Env:\SAYIT_ALLOW_UNSIGNED -ErrorAction SilentlyContinue
+    } else {
+      $env:SAYIT_ALLOW_UNSIGNED = $previousAllowUnsigned
     }
   }
 }
@@ -55,6 +107,29 @@ try {
   $output = Get-Content -Raw -Path (Join-Path $tempDir "tauri.release.conf.json") | ConvertFrom-Json
   if (@($output.plugins.updater.endpoints)[0] -ne $validEndpoint) {
     throw "Generated release config did not contain the validated updater endpoint."
+  }
+
+  $validThumbprint = "0123456789abcdef0123456789abcdef01234567"
+  $invalidTimestampUrls = @(
+    "ftp://timestamp.example.org",
+    "http://localhost/timestamp",
+    "http://192.168.1.20/timestamp",
+    "https://user:pass@timestamp.sayit.app/timestamp",
+    "https://timestamp.sayit.invalid/timestamp",
+    "https://timestamp/timestamp",
+    "https://timestamp.sayit.app/timestamp#fragment"
+  )
+
+  foreach ($timestampUrl in $invalidTimestampUrls) {
+    $result = Invoke-SignWindows $timestampUrl $validThumbprint
+    if ($result.ExitCode -eq 0 -or -not $result.Output.Contains("SAYIT_SIGN_TIMESTAMP_URL")) {
+      throw "Expected signing timestamp URL to be rejected before signtool: $timestampUrl"
+    }
+  }
+
+  $invalidThumbprintResult = Invoke-SignWindows "http://timestamp.digicert.com" "not-a-thumbprint"
+  if ($invalidThumbprintResult.ExitCode -eq 0 -or -not $invalidThumbprintResult.Output.Contains("SAYIT_SIGN_CERT_THUMBPRINT")) {
+    throw "Expected invalid signing thumbprint to be rejected before signtool."
   }
 
   Write-Host "Release script tests passed."
