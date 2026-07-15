@@ -39,21 +39,45 @@ def exit_when_parent_exits() -> None:
     threading.Thread(target=monitor_parent, daemon=True).start()
 
 
-def main() -> None:
-    exit_when_parent_exits()
+def load_backend_app():
     from app import app
 
+    return app
+
+
+def create_loopback_socket() -> socket.socket:
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(("127.0.0.1", 0))
     server_socket.listen(128)
+    return server_socket
 
+
+def announce_backend_url(server_socket: socket.socket) -> None:
     host, port = server_socket.getsockname()
     print(f"http://{host}:{port}", flush=True)
 
+
+def create_uvicorn_server(app):
     config = uvicorn.Config(app, log_level="warning", access_log=False)
-    server = uvicorn.Server(config)
+    return uvicorn.Server(config)
+
+
+def run_backend(
+    load_app=load_backend_app,
+    socket_factory=create_loopback_socket,
+    server_factory=create_uvicorn_server,
+) -> None:
+    exit_when_parent_exits()
+    app = load_app()
+    server_socket = socket_factory()
+    announce_backend_url(server_socket)
+    server = server_factory(app)
     server.run(sockets=[server_socket])
+
+
+def main() -> None:
+    run_backend()
 
 
 if __name__ == "__main__":
