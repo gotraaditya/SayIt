@@ -40,6 +40,10 @@ const missing = requiredFiles.filter((path) => !existsSync(path));
 const tauriConfigPath = join(root, "src-tauri", "tauri.conf.json");
 const tauriConfig = readFileSync(tauriConfigPath, "utf8");
 const parsedTauriConfig = JSON.parse(tauriConfig);
+const capabilityText = readFileSync(join(root, "src-tauri", "capabilities", "default.json"), "utf8");
+const cargoManifestText = readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8");
+const packageManifestText = readFileSync(join(root, "package.json"), "utf8");
+const packageLockText = readFileSync(join(root, "package-lock.json"), "utf8");
 const licenseText = existsSync(join(root, "LICENSE"))
   ? readFileSync(join(root, "LICENSE"), "utf8")
   : "";
@@ -51,6 +55,24 @@ const requirementsLock = readFileSync(join(root, "python-backend", "requirements
 
 if (tauriConfig.includes("python-backend/venv") || tauriConfig.includes("python-backend\\\\venv")) {
   missing.push("tauri.conf.json must not bundle python-backend/venv");
+}
+
+const forbiddenTauriSurfacePatterns = [
+  [/opener/i, "unused opener plugin/permission must not be present"],
+  [/clipboard-manager/i, "clipboard-manager plugin must not be present"],
+];
+
+for (const [pattern, message] of forbiddenTauriSurfacePatterns) {
+  for (const [label, text] of [
+    ["src-tauri/capabilities/default.json", capabilityText],
+    ["src-tauri/Cargo.toml", cargoManifestText],
+    ["package.json", packageManifestText],
+    ["package-lock.json", packageLockText],
+  ]) {
+    if (pattern.test(text)) {
+      missing.push(`${label}: ${message}`);
+    }
+  }
 }
 
 const bundledSourceDirs = [
