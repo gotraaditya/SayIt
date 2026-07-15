@@ -26,13 +26,13 @@ if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
   throw "SBOM reports must be tied to a real Git commit."
 }
 
-Invoke-Checked npx.cmd --yes @cyclonedx/cyclonedx-npm --output-file (Join-Path $sbomDir "npm.cdx.json")
+Invoke-Checked npx.cmd --no-install cyclonedx-npm --output-file (Join-Path $sbomDir "npm.cdx.json")
+
+$installRustReleaseTools = Join-Path $PSScriptRoot "install-rust-release-tools.ps1"
+Invoke-Checked powershell -NoProfile -ExecutionPolicy Bypass -File $installRustReleaseTools
 
 Push-Location src-tauri
 try {
-  if (-not (Get-Command cargo-cyclonedx -ErrorAction SilentlyContinue)) {
-    Invoke-Checked cargo install cargo-cyclonedx
-  }
   Invoke-Checked cargo cyclonedx --format json
   Move-Item -Force -LiteralPath "tauri-app.cdx.json" -Destination (Join-Path $sbomDir "rust.cdx.json")
 }

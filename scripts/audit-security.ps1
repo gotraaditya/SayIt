@@ -61,6 +61,12 @@ if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
   throw "Security audit reports must be tied to a real Git commit."
 }
 
+$installRustReleaseTools = Join-Path $PSScriptRoot "install-rust-release-tools.ps1"
+& $installRustReleaseTools
+if ($LASTEXITCODE -ne 0) {
+  throw "Rust release tool installation failed with exit code $LASTEXITCODE"
+}
+
 Invoke-Checked npm.cmd @("audit", "--audit-level=moderate", "--json") (Join-Path $auditDir "npm-audit.json")
 
 Push-Location src-tauri

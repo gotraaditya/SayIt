@@ -27,8 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Rust audit tool
-        run: cargo install cargo-audit
+      - name: Install Rust release tools
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/install-rust-release-tools.ps1
 
       - name: Configure signing secrets
         shell: pwsh

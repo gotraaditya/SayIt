@@ -11,7 +11,7 @@ SayIt releases must pass these gates before MSI/NSIS artifacts are published.
 5. `npm test -- --run`
 6. `python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"`
 7. `cd src-tauri && cargo test`
-8. `cargo install cargo-audit`
+8. `powershell -ExecutionPolicy Bypass -File scripts/install-rust-release-tools.ps1`
 9. `powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1`
 10. `powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1`
 11. `npm run generate:release-config`
@@ -43,6 +43,10 @@ Python, packaging-tool, or release-tool evidence cannot be generated. Security
 audit and SBOM evidence include
 `release\audit\provenance.json` and `release\sbom\provenance.json`, which tie
 the reports to the current Git commit and dependency lockfile hashes.
+Rust release tools must be installed through
+`scripts\install-rust-release-tools.ps1`, which pins `cargo-audit` and
+`cargo-cyclonedx` versions and installs them with `--locked`. The npm CycloneDX
+generator must come from `package-lock.json` via `npx --no-install`.
 
 Release readiness also requires a real Git `HEAD` commit. In GitHub Actions it
 checks that `HEAD` matches `GITHUB_SHA`, so published artifacts can be traced

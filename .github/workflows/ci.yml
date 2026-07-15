@@ -31,8 +31,9 @@ jobs:
           python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\release-tools-requirements.lock.txt
           python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
 
-      - name: Install Rust audit tool
-        run: cargo install cargo-audit
+      - name: Install Rust release tools
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/install-rust-release-tools.ps1
 
       - name: Frontend tests
         run: npm test -- --run

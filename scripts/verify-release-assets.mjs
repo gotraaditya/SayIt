@@ -51,6 +51,7 @@ const backendAppText = readFileSync(join(root, "python-backend", "app.py"), "utf
 const tauriLibText = readFileSync(join(root, "src-tauri", "src", "lib.rs"), "utf8");
 const cleanMachineSmokeText = readFileSync(join(root, "scripts", "clean-machine-smoke.ps1"), "utf8");
 const releaseReadinessText = readFileSync(join(root, "scripts", "verify-release-readiness.ps1"), "utf8");
+const installRustReleaseToolsText = readFileSync(join(root, "scripts", "install-rust-release-tools.ps1"), "utf8");
 const signWindowsText = readFileSync(join(root, "scripts", "sign-windows.ps1"), "utf8");
 const releaseScriptTestsText = readFileSync(join(root, "scripts", "test-release-scripts.ps1"), "utf8");
 const releaseBundleVerifierText = readFileSync(join(root, "scripts", "verify-release-bundles.ps1"), "utf8");
@@ -232,6 +233,16 @@ const requiredReleaseEvidenceFragments = [
     ],
   ],
   [
+    "scripts/install-rust-release-tools.ps1",
+    installRustReleaseToolsText,
+    [
+      'CargoAuditVersion = "0.22.2"',
+      'CargoCyclonedxVersion = "0.5.9"',
+      "cargo install cargo-audit --version $CargoAuditVersion --locked --force",
+      "cargo install cargo-cyclonedx --version $CargoCyclonedxVersion --locked --force",
+    ],
+  ],
+  [
     "scripts/verify-release-readiness.ps1",
     releaseReadinessText,
     [
@@ -269,6 +280,7 @@ const requiredReleaseEvidenceFragments = [
     [
       "python-packaging-audit.json",
       "python-release-tools-audit.json",
+      "install-rust-release-tools.ps1",
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
       "release-tools-requirements.lock.txt",
@@ -279,6 +291,8 @@ const requiredReleaseEvidenceFragments = [
     "scripts/generate-sbom.ps1",
     generateSbomText,
     [
+      "npx.cmd --no-install cyclonedx-npm",
+      "install-rust-release-tools.ps1",
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
       "release-tools-requirements.lock.txt",
@@ -331,6 +345,7 @@ const requiredReleaseEvidenceFragments = [
     [
       "npm run test:release-scripts",
       "release-tools-requirements.lock.txt",
+      "install-rust-release-tools.ps1",
     ],
   ],
   [
@@ -339,6 +354,7 @@ const requiredReleaseEvidenceFragments = [
     [
       "npm run test:release-scripts",
       "release-tools-requirements.lock.txt",
+      "install-rust-release-tools.ps1",
     ],
   ],
 ];
@@ -432,6 +448,34 @@ for (const [label, text] of [
   if (/pip\s+install\s+(?!.*--require-hashes)/i.test(text)) {
     missing.push(`${label} must use --require-hashes for pip installs`);
   }
+}
+
+if (!packageManifestText.includes('"@cyclonedx/cyclonedx-npm": "6.0.0"')) {
+  missing.push("package.json must pin @cyclonedx/cyclonedx-npm for locked npm SBOM generation");
+}
+
+if (!packageLockText.includes('"node_modules/@cyclonedx/cyclonedx-npm"')) {
+  missing.push("package-lock.json must lock @cyclonedx/cyclonedx-npm");
+}
+
+for (const [label, text] of [
+  ["scripts/install-rust-release-tools.ps1", installRustReleaseToolsText],
+  ["scripts/audit-security.ps1", auditSecurityText],
+  ["scripts/generate-sbom.ps1", generateSbomText],
+  [".github/workflows/ci.yml", ciWorkflowText],
+  [".github/workflows/release.yml", releaseWorkflowText],
+]) {
+  const cargoInstallLines = text.match(/^.*cargo\s+install\s+.*$/gim) ?? [];
+  for (const line of cargoInstallLines) {
+    if (!/--version\s+\S+/i.test(line) || !/--locked/i.test(line)) {
+      missing.push(`${label} must pin cargo-installed release tools with --version and --locked`);
+      break;
+    }
+  }
+}
+
+if (/npx\.cmd\s+--yes/i.test(generateSbomText) || !generateSbomText.includes("npx.cmd --no-install cyclonedx-npm")) {
+  missing.push("scripts/generate-sbom.ps1 must use locked npm CycloneDX tooling with npx --no-install");
 }
 
 if (!/MIT License/i.test(licenseText)) {
