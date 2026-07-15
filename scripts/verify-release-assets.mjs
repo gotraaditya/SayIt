@@ -219,6 +219,9 @@ const requiredReleaseEvidenceFragments = [
       "Clean-machine smoke backend diagnostic log hash no longer matches the report.",
       "Test-ProductionTimestampUrl",
       "Signing timestamp URL must not point at a local, private, or reserved IP address.",
+      "Test-UpdaterSigningPrivateKey",
+      "must be a private updater signing key, not a public key.",
+      "TAURI_SIGNING_PRIVATE_KEY_PATH",
     ],
   ],
   [
@@ -238,6 +241,9 @@ const requiredReleaseEvidenceFragments = [
       "invalidTimestampUrls",
       "Expected signing timestamp URL to be rejected before signtool",
       "Expected invalid signing thumbprint to be rejected before signtool.",
+      "Expected public updater key text to be rejected.",
+      "Expected placeholder updater key text to be rejected.",
+      "Expected public updater key file to be rejected.",
     ],
   ],
   [

@@ -3,6 +3,7 @@ $ErrorActionPreference = "Stop"
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $generateReleaseConfig = Join-Path $root "scripts\generate-release-config.ps1"
 $signWindows = Join-Path $root "scripts\sign-windows.ps1"
+$verifyReleaseReadiness = Join-Path $root "scripts\verify-release-readiness.ps1"
 $tempDir = Join-Path ([IO.Path]::GetTempPath()) "sayit-release-script-tests-$([Guid]::NewGuid())"
 New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 
@@ -77,6 +78,48 @@ function Invoke-SignWindows {
   }
 }
 
+function Invoke-ReleaseReadinessWithUpdaterKey {
+  param(
+    [string]$UpdaterKey,
+    [switch]$UseKeyFile
+  )
+
+  $previousUpdaterKey = $env:TAURI_SIGNING_PRIVATE_KEY
+  $previousUpdaterKeyPath = $env:TAURI_SIGNING_PRIVATE_KEY_PATH
+  $previousErrorActionPreference = $ErrorActionPreference
+  Remove-Item Env:\TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+  Remove-Item Env:\TAURI_SIGNING_PRIVATE_KEY_PATH -ErrorAction SilentlyContinue
+
+  if ($UseKeyFile) {
+    $keyPath = Join-Path $tempDir "tauri-updater.key"
+    Set-Content -Encoding utf8 -Path $keyPath -Value $UpdaterKey
+    $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $keyPath
+  } else {
+    $env:TAURI_SIGNING_PRIVATE_KEY = $UpdaterKey
+  }
+
+  try {
+    $ErrorActionPreference = "Continue"
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness 2>&1 | Out-String
+    return [pscustomobject]@{
+      ExitCode = $LASTEXITCODE
+      Output = $output
+    }
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+    if ($null -eq $previousUpdaterKey) {
+      Remove-Item Env:\TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+    } else {
+      $env:TAURI_SIGNING_PRIVATE_KEY = $previousUpdaterKey
+    }
+    if ($null -eq $previousUpdaterKeyPath) {
+      Remove-Item Env:\TAURI_SIGNING_PRIVATE_KEY_PATH -ErrorAction SilentlyContinue
+    } else {
+      $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $previousUpdaterKeyPath
+    }
+  }
+}
+
 try {
   $invalidEndpoints = @(
     "http://updates.sayit.example.com/releases/latest.json",
@@ -130,6 +173,22 @@ try {
   $invalidThumbprintResult = Invoke-SignWindows "http://timestamp.digicert.com" "not-a-thumbprint"
   if ($invalidThumbprintResult.ExitCode -eq 0 -or -not $invalidThumbprintResult.Output.Contains("SAYIT_SIGN_CERT_THUMBPRINT")) {
     throw "Expected invalid signing thumbprint to be rejected before signtool."
+  }
+
+  $publicUpdaterKey = "untrusted comment: minisign public key: 54DEADBEEFDEADBE`nRWT000000000000000000000000000000000000000000000000000000000000000"
+  $publicUpdaterKeyResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey
+  if ($publicUpdaterKeyResult.ExitCode -eq 0 -or -not $publicUpdaterKeyResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY must be a private updater signing key")) {
+    throw "Expected public updater key text to be rejected."
+  }
+
+  $placeholderUpdaterKeyResult = Invoke-ReleaseReadinessWithUpdaterKey "placeholder"
+  if ($placeholderUpdaterKeyResult.ExitCode -eq 0 -or -not $placeholderUpdaterKeyResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY looks like a placeholder")) {
+    throw "Expected placeholder updater key text to be rejected."
+  }
+
+  $publicUpdaterKeyFileResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey -UseKeyFile
+  if ($publicUpdaterKeyFileResult.ExitCode -eq 0 -or -not $publicUpdaterKeyFileResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY_PATH must be a private updater signing key")) {
+    throw "Expected public updater key file to be rejected."
   }
 
   Write-Host "Release script tests passed."

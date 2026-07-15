@@ -77,8 +77,9 @@ private updater key in CI as one of:
 - `SAYIT_UPDATE_ENDPOINT`
 
 Store `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if the key is password-protected.
-The public key is committed in Tauri config. The base config intentionally has
-no updater endpoint; `scripts/generate-release-config.ps1` writes
+The public key is committed in Tauri config. Release readiness rejects updater
+signing secrets that are placeholders, public keys, too short, or malformed. The
+base config intentionally has no updater endpoint; `scripts/generate-release-config.ps1` writes
 `release\tauri.release.conf.json` from `SAYIT_UPDATE_ENDPOINT`, and release
 builds must pass it to Tauri with `--config`.
 

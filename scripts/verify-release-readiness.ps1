@@ -21,6 +21,51 @@ function Test-PlaceholderSecret {
   return $trimmed.Length -lt 64 -or $trimmed -match "^(dummy|test|placeholder|changeme|secret)$"
 }
 
+function Test-UpdaterSigningPrivateKey {
+  param(
+    [string]$Value,
+    [string]$Label
+  )
+
+  $keyFailures = @()
+  if (Test-PlaceholderSecret $Value) {
+    return @("$Label looks like a placeholder rather than a real updater signing key.")
+  }
+
+  $trimmed = $Value.Trim()
+  if ($trimmed -match "(?i)minisign public key|-----BEGIN PUBLIC KEY-----") {
+    $keyFailures += "$Label must be a private updater signing key, not a public key."
+  }
+
+  if ($trimmed -match "(?i)untrusted comment:") {
+    if ($trimmed -notmatch "(?i)(secret|private) key") {
+      $keyFailures += "$Label minisign comment does not identify a private or secret key."
+    }
+    $keyLines = @($trimmed -split "`r?`n" | Where-Object { $_.Trim() })
+    if ($keyLines.Count -lt 2) {
+      $keyFailures += "$Label minisign key must include a comment line and key material."
+    } elseif ($keyLines[1].Trim().Length -lt 64) {
+      $keyFailures += "$Label minisign key material is too short."
+    }
+  } elseif ($trimmed -match "-----BEGIN .*PRIVATE KEY-----") {
+    if ($trimmed -notmatch "-----END .*PRIVATE KEY-----") {
+      $keyFailures += "$Label PEM private key is missing an END marker."
+    }
+  } else {
+    if ($trimmed.Length -lt 128) {
+      $keyFailures += "$Label key material is too short."
+    }
+    if ($trimmed -notmatch "^[A-Za-z0-9+/=`r`n-]+$") {
+      $keyFailures += "$Label key material contains unexpected characters."
+    }
+    if ($trimmed -match "^(.)\1+$") {
+      $keyFailures += "$Label key material is not plausible."
+    }
+  }
+
+  return $keyFailures
+}
+
 function Read-JsonEvidence {
   param(
     [string]$Path,
@@ -304,10 +349,15 @@ if ($env:TAURI_SIGNING_PRIVATE_KEY_PATH) {
     Add-Failure "TAURI_SIGNING_PRIVATE_KEY_PATH does not exist: $env:TAURI_SIGNING_PRIVATE_KEY_PATH"
   } elseif ((Get-Item -LiteralPath $env:TAURI_SIGNING_PRIVATE_KEY_PATH).Length -le 0) {
     Add-Failure "TAURI_SIGNING_PRIVATE_KEY_PATH points to an empty file."
+  } else {
+    $updaterSigningPrivateKey = Get-Content -Raw -Path $env:TAURI_SIGNING_PRIVATE_KEY_PATH
+    foreach ($keyFailure in (Test-UpdaterSigningPrivateKey $updaterSigningPrivateKey "TAURI_SIGNING_PRIVATE_KEY_PATH")) {
+      Add-Failure $keyFailure
+    }
   }
 } elseif ($env:TAURI_SIGNING_PRIVATE_KEY) {
-  if (Test-PlaceholderSecret $env:TAURI_SIGNING_PRIVATE_KEY) {
-    Add-Failure "TAURI_SIGNING_PRIVATE_KEY looks like a placeholder rather than a real updater signing key."
+  foreach ($keyFailure in (Test-UpdaterSigningPrivateKey $env:TAURI_SIGNING_PRIVATE_KEY "TAURI_SIGNING_PRIVATE_KEY")) {
+    Add-Failure $keyFailure
   }
 } else {
   Add-Failure "Set TAURI_SIGNING_PRIVATE_KEY or TAURI_SIGNING_PRIVATE_KEY_PATH for updater artifact signing."
