@@ -177,6 +177,22 @@ class BackendValidationTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("x-sayit-token", response.headers["access-control-allow-headers"].lower())
+        self.assertIn("POST", response.headers["access-control-allow-methods"])
+
+    def test_cors_preflight_allows_health_get(self):
+        client = TestClient(sayit_app.app)
+
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://localhost:1425",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "x-sayit-token",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("GET", response.headers["access-control-allow-methods"])
 
     def test_cancel_marks_job_stale(self):
         sayit_app.remember_latest_job("cancel-job")
