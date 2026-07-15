@@ -40,6 +40,26 @@ function Read-JsonEvidence {
   }
 }
 
+function Test-TextEvidence {
+  param(
+    [string]$Path,
+    [string]$Label,
+    [string[]]$RequiredFragments
+  )
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    Add-Failure "Missing ${Label}: $Path"
+    return
+  }
+
+  $content = Get-Content -Raw -Path $Path
+  foreach ($fragment in $RequiredFragments) {
+    if (-not $content.Contains($fragment)) {
+      Add-Failure "${Label} is missing required release gate: $fragment"
+    }
+  }
+}
+
 $failures = @()
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
@@ -72,6 +92,33 @@ try {
 } finally {
   Pop-Location
 }
+
+Test-TextEvidence (Join-Path $root ".github\workflows\ci.yml") "CI workflow" @(
+  "npm ci",
+  "npm test -- --run",
+  "python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p `"test_*.py`"",
+  "cargo test",
+  "scripts/audit-security.ps1",
+  "scripts/build-python-sidecar.ps1",
+  "npm run verify:release-assets",
+  "scripts/generate-sbom.ps1"
+)
+
+Test-TextEvidence (Join-Path $root ".github\workflows\release.yml") "Release workflow" @(
+  "environment: release",
+  "scripts/build-python-sidecar.ps1",
+  "npm run verify:release-assets",
+  "npm test -- --run",
+  "python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p `"test_*.py`"",
+  "cargo test",
+  "scripts/audit-security.ps1",
+  "scripts/generate-sbom.ps1",
+  "scripts/generate-release-config.ps1",
+  "scripts/verify-release-readiness.ps1 -SkipCleanMachineSmoke -ConfigPath release\tauri.release.conf.json",
+  "npx tauri build --config release\tauri.release.conf.json",
+  "npm run verify:release-bundles",
+  "actions/upload-artifact"
+)
 
 if ($ConfigPath) {
   $resolvedConfigPath = [IO.Path]::GetFullPath((Join-Path (Get-Location) $ConfigPath))

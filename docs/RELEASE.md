@@ -26,6 +26,9 @@ signing and updater secrets listed below. It runs
 signed bundles because clean-machine smoke evidence can only be generated after
 an installer exists. Run the full `npm run verify:release-readiness` before
 promoting a signed artifact to a public channel.
+Release readiness checks that both the CI and release workflow files are present
+and still contain the critical test, audit, SBOM, sidecar, signing, bundle, and
+artifact upload gates.
 
 Backend test environments and release sidecar builds must install from
 `python-backend\requirements.lock.txt` with `--require-hashes`. The audit and
