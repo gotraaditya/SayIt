@@ -89,6 +89,18 @@ class BackendValidationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 409)
 
+    def test_render_audio_rejects_cancel_after_final_segment(self):
+        def generator():
+            yield ("last", "a", [0.1])
+            sayit_app.cancel_job("final-cancel-job")
+
+        sayit_app.remember_latest_job("final-cancel-job")
+
+        with self.assertRaises(HTTPException) as context:
+            sayit_app.render_audio(generator(), "final-cancel-job")
+
+        self.assertEqual(context.exception.status_code, 409)
+
     def test_render_audio_enforces_inference_deadline(self):
         original_deadline = sayit_app.INFERENCE_DEADLINE_SECONDS
         sayit_app.INFERENCE_DEADLINE_SECONDS = -1

@@ -211,6 +211,8 @@ def render_audio(generator: Iterable[tuple[object, object, object]], job_id: str
                 audio_segments.append(segment)
 
     if audio_segments:
+        if job_is_stale_or_canceled(job_id):
+            raise HTTPException(status_code=409, detail="Synthesis job was superseded.")
         audio = (
             audio_segments[0]
             if len(audio_segments) == 1
