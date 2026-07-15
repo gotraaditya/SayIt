@@ -41,6 +41,7 @@ const tauriConfigPath = join(root, "src-tauri", "tauri.conf.json");
 const tauriConfig = readFileSync(tauriConfigPath, "utf8");
 const parsedTauriConfig = JSON.parse(tauriConfig);
 const capabilityText = readFileSync(join(root, "src-tauri", "capabilities", "default.json"), "utf8");
+const parsedCapability = JSON.parse(capabilityText.replace(/^\uFEFF/, ""));
 const cargoManifestText = readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8");
 const packageManifestText = readFileSync(join(root, "package.json"), "utf8");
 const packageLockText = readFileSync(join(root, "package-lock.json"), "utf8");
@@ -72,6 +73,29 @@ for (const [pattern, message] of forbiddenTauriSurfacePatterns) {
     if (pattern.test(text)) {
       missing.push(`${label}: ${message}`);
     }
+  }
+}
+
+const allowedCapabilityPermissions = new Set([
+  "core:default",
+  "core:window:allow-start-dragging",
+  "core:window:allow-set-size",
+  "core:window:allow-set-position",
+  "core:window:allow-set-focus",
+  "core:window:allow-show",
+  "core:window:allow-hide",
+  "core:window:allow-is-visible",
+  "core:window:allow-outer-position",
+  "core:window:allow-outer-size",
+  "core:window:allow-current-monitor",
+  "core:window:allow-scale-factor",
+  "core:webview:allow-create-webview-window",
+  "updater:default",
+]);
+
+for (const permission of parsedCapability.permissions ?? []) {
+  if (!allowedCapabilityPermissions.has(permission)) {
+    missing.push(`src-tauri/capabilities/default.json contains unexpected permission: ${permission}`);
   }
 }
 
