@@ -189,6 +189,11 @@ const requiredReleaseEvidenceFragments = [
     [
       "Speech synthesis completed:",
       "voice=%s",
+      "render_speech_with_deadline",
+      "threading.Event()",
+      "completed.wait(INFERENCE_DEADLINE_SECONDS)",
+      "cancel_job(job_id)",
+      "inference_lock.release()",
     ],
   ],
   [

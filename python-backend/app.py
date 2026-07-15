@@ -239,7 +239,7 @@ def render_speech_with_deadline(text: str, voice: str, job_id: str) -> io.BytesI
                 pipeline(text, voice=voice, speed=1.0),
                 job_id,
             )
-        except BaseException as error:
+        except Exception as error:
             result["error"] = error
         finally:
             inference_lock.release()
