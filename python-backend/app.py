@@ -272,6 +272,12 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
             pipeline(text, voice=voice, speed=1.0),
             request.job_id,
         )
+        LOGGER.info(
+            "Speech synthesis completed: job_id=%s voice=%s chars=%s",
+            request.job_id,
+            voice,
+            len(text),
+        )
     except HTTPException:
         raise
     except Exception:

@@ -549,6 +549,7 @@ fn spawn_backend(app: &tauri::AppHandle, token: &str) -> Result<BackendProcess, 
         terminate_backend(&mut child);
         return Err(format!("SayIt backend failed readiness check: {error}"));
     }
+    log_desktop_diagnostic(app, &format!("Backend ready: {backend_url}"));
 
     thread::spawn(move || {
         for line in reader.lines().map_while(Result::ok) {
@@ -765,12 +766,16 @@ pub fn run() {
                             *child_guard = Some(process.child);
                         }
                         if let Ok(mut backend) = monitor_backend_connection.lock() {
-                            backend.url = process.url;
+                            backend.url = process.url.clone();
                             backend.token = token_for_monitor.clone();
                             backend.available = true;
                             backend.last_error.clear();
                         }
                         let _ = monitor_app.emit("backend_restarted", ());
+                        log_desktop_diagnostic(
+                            &monitor_app,
+                            &format!("Backend restart succeeded: {}", process.url),
+                        );
                     }
                     Err(error) => {
                         eprintln!("SayIt backend restart failed: {error}");

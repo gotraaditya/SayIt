@@ -10,12 +10,66 @@ param(
   [switch]$AllVoicesValidated,
   [switch]$BackendRestartValidated,
   [switch]$BackendExitValidated,
+  [string]$DesktopLogPath,
+  [string]$BackendLogPath,
   [string]$ReportPath = "release\clean-machine-smoke.json"
 )
 
 $ErrorActionPreference = "Stop"
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$requiredVoices = @(
+  "af_heart",
+  "af_bella",
+  "af_nicole",
+  "af_sky",
+  "af_alloy",
+  "af_jessica",
+  "am_adam",
+  "am_michael",
+  "am_onyx",
+  "am_echo",
+  "am_fenrir"
+)
+
+function Resolve-RequiredEvidenceFile {
+  param(
+    [string]$Path,
+    [string]$Label
+  )
+
+  if (-not $Path) {
+    throw "Clean-machine smoke requires ${Label}. Pass the installed-app log path."
+  }
+
+  if ([IO.Path]::IsPathRooted($Path)) {
+    $resolved = [IO.Path]::GetFullPath($Path)
+  } else {
+    $resolved = [IO.Path]::GetFullPath((Join-Path (Get-Location) $Path))
+  }
+  if (-not (Test-Path -LiteralPath $resolved)) {
+    throw "Clean-machine smoke ${Label} does not exist: $resolved"
+  }
+
+  $item = Get-Item -LiteralPath $resolved
+  if ($item.Length -le 0) {
+    throw "Clean-machine smoke ${Label} is empty: $resolved"
+  }
+
+  return $item
+}
+
+function Assert-LogContains {
+  param(
+    [string]$Content,
+    [string]$Fragment,
+    [string]$Label
+  )
+
+  if (-not $Content.Contains($Fragment)) {
+    throw "${Label} is missing required evidence: $Fragment"
+  }
+}
 
 if (-not (Test-Path -LiteralPath $InstallerPath)) {
   throw "Installer does not exist: $InstallerPath"
@@ -67,7 +121,22 @@ if ($failed.Count -gt 0) {
   Write-Host "6. Confirm speech works offline and all advertised voices preview."
   Write-Host "7. Kill sayit-backend.exe and confirm SayIt restarts it."
   Write-Host "8. Confirm sayit-backend.exe exits when SayIt exits or crashes."
+  Write-Host "9. Pass -DesktopLogPath and -BackendLogPath from the installed app log directory."
   throw "Clean-machine smoke evidence is incomplete. Missing confirmations: $($failed -join ', ')"
+}
+
+$desktopLog = Resolve-RequiredEvidenceFile $DesktopLogPath "desktop diagnostic log"
+$backendLog = Resolve-RequiredEvidenceFile $BackendLogPath "backend diagnostic log"
+$desktopLogContent = Get-Content -Raw -Path $desktopLog.FullName
+$backendLogContent = Get-Content -Raw -Path $backendLog.FullName
+
+Assert-LogContains $desktopLogContent "SayIt desktop setup started." "Desktop diagnostic log"
+Assert-LogContains $desktopLogContent "Backend ready:" "Desktop diagnostic log"
+Assert-LogContains $desktopLogContent "Backend process exited:" "Desktop diagnostic log"
+Assert-LogContains $desktopLogContent "Backend restart succeeded:" "Desktop diagnostic log"
+Assert-LogContains $backendLogContent "Kokoro TTS model loaded." "Backend diagnostic log"
+foreach ($voice in $requiredVoices) {
+  Assert-LogContains $backendLogContent "voice=$voice" "Backend diagnostic log"
 }
 
 $report = [ordered]@{
@@ -79,6 +148,12 @@ $report = [ordered]@{
   installerSize = $installer.Length
   installerSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
   installerSignatureStatus = $installerSignature.Status.ToString()
+  diagnosticLogs = [ordered]@{
+    desktopLogPath = $desktopLog.FullName
+    desktopLogSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $desktopLog.FullName).Hash.ToLowerInvariant()
+    backendLogPath = $backendLog.FullName
+    backendLogSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $backendLog.FullName).Hash.ToLowerInvariant()
+  }
   checks = $checks
 }
 

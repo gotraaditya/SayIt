@@ -335,6 +335,62 @@ if (-not $SkipCleanMachineSmoke) {
       }
     }
 
+    if (-not $smokeReport.diagnosticLogs) {
+      Add-Failure "Clean-machine smoke report is missing diagnostic log evidence."
+    } else {
+      $desktopLogPath = $smokeReport.diagnosticLogs.desktopLogPath
+      $backendLogPath = $smokeReport.diagnosticLogs.backendLogPath
+      if (-not $desktopLogPath -or -not (Test-Path -LiteralPath $desktopLogPath)) {
+        Add-Failure "Clean-machine smoke desktop diagnostic log no longer exists: $desktopLogPath"
+      } else {
+        $desktopLogHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $desktopLogPath).Hash.ToLowerInvariant()
+        if ($desktopLogHash -ne $smokeReport.diagnosticLogs.desktopLogSha256) {
+          Add-Failure "Clean-machine smoke desktop diagnostic log hash no longer matches the report."
+        }
+        $desktopLogContent = Get-Content -Raw -Path $desktopLogPath
+        foreach ($fragment in @(
+          "SayIt desktop setup started.",
+          "Backend ready:",
+          "Backend process exited:",
+          "Backend restart succeeded:"
+        )) {
+          if (-not $desktopLogContent.Contains($fragment)) {
+            Add-Failure "Clean-machine smoke desktop diagnostic log is missing: $fragment"
+          }
+        }
+      }
+
+      if (-not $backendLogPath -or -not (Test-Path -LiteralPath $backendLogPath)) {
+        Add-Failure "Clean-machine smoke backend diagnostic log no longer exists: $backendLogPath"
+      } else {
+        $backendLogHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $backendLogPath).Hash.ToLowerInvariant()
+        if ($backendLogHash -ne $smokeReport.diagnosticLogs.backendLogSha256) {
+          Add-Failure "Clean-machine smoke backend diagnostic log hash no longer matches the report."
+        }
+        $backendLogContent = Get-Content -Raw -Path $backendLogPath
+        if (-not $backendLogContent.Contains("Kokoro TTS model loaded.")) {
+          Add-Failure "Clean-machine smoke backend diagnostic log is missing model-load evidence."
+        }
+        foreach ($voice in @(
+          "af_heart",
+          "af_bella",
+          "af_nicole",
+          "af_sky",
+          "af_alloy",
+          "af_jessica",
+          "am_adam",
+          "am_michael",
+          "am_onyx",
+          "am_echo",
+          "am_fenrir"
+        )) {
+          if (-not $backendLogContent.Contains("voice=$voice")) {
+            Add-Failure "Clean-machine smoke backend diagnostic log is missing voice evidence: $voice"
+          }
+        }
+      }
+    }
+
     foreach ($property in @(
       "freshMachine",
       "installedSuccessfully",

@@ -16,7 +16,7 @@ SayIt releases must pass these gates before MSI/NSIS artifacts are published.
 10. `npm run generate:release-config`
 11. `npx tauri build --config release\tauri.release.conf.json`
 12. `npm run verify:release-bundles`
-13. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
+13. `powershell -ExecutionPolicy Bypass -File scripts/clean-machine-smoke.ps1 -InstallerPath <path> -DesktopLogPath <installed-app-log-dir>\sayit-desktop.log -BackendLogPath <installed-app-log-dir>\sayit-backend.log -FreshMachine -InstalledSuccessfully -NetworkDisconnected -SingleInstanceValidated -OfflineSpeechValidated -AllVoicesValidated -BackendRestartValidated -BackendExitValidated`
 14. `npm run verify:release-readiness`
 
 The tag/manual release workflow in `.github/workflows/release.yml` runs these
@@ -85,10 +85,13 @@ changes, if SBOMs or vulnerability audit reports are missing, or if the
 clean-machine smoke report has not confirmed the offline/restart/exit checks.
 Smoke evidence is tied to the installer hash and size; the smoke script rejects
 non-installer paths and artifacts smaller than the offline backend bundle. It
-also records the Git commit used for the build, and release readiness rejects
-smoke reports whose `sourceCommit` does not match the current `HEAD`. Smoke
-evidence must be recorded against the signed installer; unsigned installers are
-rejected by both the smoke script and release readiness.
+also records the Git commit used for the build, the desktop diagnostic log hash,
+and the backend diagnostic log hash. Release readiness rejects smoke reports
+whose `sourceCommit` does not match the current `HEAD`, whose diagnostic log
+hashes no longer match, or whose logs do not show backend readiness, restart,
+model load, and all advertised voices being synthesized. Smoke evidence must be
+recorded against the signed installer; unsigned installers are rejected by both
+the smoke script and release readiness.
 
 ## Release Channels
 
