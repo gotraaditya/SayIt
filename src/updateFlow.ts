@@ -20,6 +20,7 @@ export async function installStartupUpdate(
   checkForUpdate: UpdateCheck,
   onStatus: (status: UpdateStatus) => void,
   timeout = 5000,
+  relaunchApp: () => Promise<void> = async () => {},
 ) {
   const update = await checkForUpdate({ timeout });
   if (!update) return false;
@@ -31,5 +32,6 @@ export async function installStartupUpdate(
   });
   await update.downloadAndInstall();
   onStatus({ state: "installed", version: update.version });
+  await relaunchApp();
   return true;
 }

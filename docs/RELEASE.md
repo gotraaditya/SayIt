@@ -78,9 +78,10 @@ fails if `SAYIT_ALLOW_UNSIGNED=1` is present.
 
 ## Automatic Updates
 
-Tauri updater artifacts are enabled in `src-tauri/tauri.conf.json`, and the app
-performs a startup update check through `@tauri-apps/plugin-updater`. Store the
-private updater key in CI as one of:
+Tauri updater artifacts are enabled in `src-tauri/tauri.conf.json`. On startup,
+the app checks for updates, installs an available update, and relaunches through
+`@tauri-apps/plugin-updater` and `@tauri-apps/plugin-process`. Store the private
+updater key in CI as one of:
 
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PATH`

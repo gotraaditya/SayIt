@@ -113,6 +113,7 @@ const allowedCapabilityPermissions = new Set([
   "core:window:allow-current-monitor",
   "core:window:allow-scale-factor",
   "core:webview:allow-create-webview-window",
+  "process:allow-restart",
   "updater:default",
 ]);
 
@@ -213,14 +214,17 @@ const requiredReleaseEvidenceFragments = [
       "downloadAndInstall",
       "installStartupUpdate",
       "currentVersion",
+      "relaunchApp",
     ],
   ],
   [
     "src/App.tsx",
     appFrontendText,
     [
-      "installStartupUpdate(checkForUpdate",
-      "Update installed. Restart SayIt.",
+      "installStartupUpdate(",
+      "checkForUpdate",
+      "relaunch",
+      "Update installed. Restarting SayIt.",
     ],
   ],
   [

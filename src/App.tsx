@@ -4,6 +4,7 @@ import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { emit, listen } from "@tauri-apps/api/event";
 import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkForUpdate } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import {
@@ -373,22 +374,27 @@ function App() {
     if (isSettingsWindow) return;
 
     let disposed = false;
-    installStartupUpdate(checkForUpdate, (updateStatus) => {
-      if (disposed) return;
-      if (updateStatus.state === "available") {
-        setStatus("updating");
-        setStatusMessage(`Installing SayIt ${updateStatus.version}`);
-        setErrorCause("");
-        console.info(
-          `SayIt update available: ${updateStatus.currentVersion} -> ${updateStatus.version}`,
-        );
-        return;
-      }
+    installStartupUpdate(
+      checkForUpdate,
+      (updateStatus) => {
+        if (disposed) return;
+        if (updateStatus.state === "available") {
+          setStatus("updating");
+          setStatusMessage(`Installing SayIt ${updateStatus.version}`);
+          setErrorCause("");
+          console.info(
+            `SayIt update available: ${updateStatus.currentVersion} -> ${updateStatus.version}`,
+          );
+          return;
+        }
 
-      setStatus("saved");
-      setStatusMessage("Update installed. Restart SayIt.");
-      setErrorCause("");
-    })
+        setStatus("updating");
+        setStatusMessage("Update installed. Restarting SayIt.");
+        setErrorCause("");
+      },
+      5000,
+      relaunch,
+    )
       .then((installed) => {
         if (!disposed && installed) {
           console.info("SayIt update installed; restart required.");
