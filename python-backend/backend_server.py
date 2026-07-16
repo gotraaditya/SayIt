@@ -1,3 +1,4 @@
+import contextlib
 import socket
 import os
 import sys
@@ -97,7 +98,8 @@ def run_backend(
     server_factory=create_uvicorn_server,
 ) -> None:
     exit_when_parent_exits()
-    app = load_app()
+    with contextlib.redirect_stdout(sys.stderr):
+        app = load_app()
     server_socket = socket_factory()
     announce_backend_url(server_socket)
     server = server_factory(app)

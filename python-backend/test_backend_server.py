@@ -79,6 +79,32 @@ class BackendServerStartupTests(unittest.TestCase):
         self.assertEqual(output.getvalue(), "http://127.0.0.1:49152\n")
         self.assertEqual(events, ["getsockname", ("run", [fake_socket])])
 
+    def test_noisy_app_load_does_not_corrupt_backend_url_announcement(self):
+        class FakeSocket:
+            def getsockname(self):
+                return ("127.0.0.1", 49152)
+
+        class FakeServer:
+            def run(self, sockets):
+                pass
+
+        output = io.StringIO()
+        errors = io.StringIO()
+
+        def load_app():
+            print("third-party import warning")
+            return "app"
+
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            backend_server.run_backend(
+                load_app=load_app,
+                socket_factory=lambda: FakeSocket(),
+                server_factory=lambda app: FakeServer(),
+            )
+
+        self.assertEqual(output.getvalue(), "http://127.0.0.1:49152\n")
+        self.assertEqual(errors.getvalue(), "third-party import warning\n")
+
 
 if __name__ == "__main__":
     unittest.main()
