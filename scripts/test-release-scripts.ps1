@@ -49,7 +49,7 @@ function Invoke-SignWindows {
 
   try {
     $ErrorActionPreference = "Continue"
-    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $signWindows -BinaryPath $binaryPath 2>&1 | Out-String
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $signWindows -BinaryPath $binaryPath 2>&1 | Out-String -Width 4096
     return [pscustomobject]@{
       ExitCode = $LASTEXITCODE
       Output = $output
@@ -101,7 +101,7 @@ function Invoke-ReleaseReadinessWithUpdaterKey {
 
   try {
     $ErrorActionPreference = "Continue"
-    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness 2>&1 | Out-String
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness 2>&1 | Out-String -Width 4096
     return [pscustomobject]@{
       ExitCode = $LASTEXITCODE
       Output = $output
@@ -127,7 +127,7 @@ function Invoke-VerifyReleaseBundles {
   $previousErrorActionPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = "Continue"
-    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseBundles -BundleDir $BundleDir 2>&1 | Out-String
+    $output = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseBundles -BundleDir $BundleDir 2>&1 | Out-String -Width 4096
     return [pscustomobject]@{
       ExitCode = $LASTEXITCODE
       Output = $output
@@ -179,7 +179,7 @@ try {
       throw "Expected release config generation to support absolute OutputPath."
     }
 
-    $readinessOutput = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness -SkipCleanMachineSmoke -ConfigPath $absoluteReleaseConfigPath 2>&1 | Out-String
+    $readinessOutput = powershell -NoProfile -ExecutionPolicy Bypass -File $verifyReleaseReadiness -SkipCleanMachineSmoke -ConfigPath $absoluteReleaseConfigPath 2>&1 | Out-String -Width 4096
     if ($LASTEXITCODE -eq 0) {
       throw "Expected readiness to fail without signing secrets while accepting absolute ConfigPath."
     }
