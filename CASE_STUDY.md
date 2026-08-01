@@ -129,9 +129,9 @@ The current repository provides engineering validation rather than product-marke
 
 | Area | Result | Coverage demonstrated |
 | --- | --- | --- |
-| Frontend unit tests | 9 passing | Sentence splitting, chunk limits, caption offsets, shortcut formatting, and shortcut validation |
-| Python backend tests | 5 passing | Empty and oversized requests, voice allow-listing, accepted input, and safe error responses |
-| Rust tests | 3 passing | Reserved shortcuts, missing modifiers, and accepted shortcut combinations |
+| Frontend unit tests | 12 passing | Sentence splitting, chunk limits, caption offsets, shortcut formatting, shortcut validation, and update behavior |
+| Python backend tests | 30 passing | Request validation, authentication, cancellation, concurrency, timeouts, model errors, CORS, and server startup |
+| Rust tests | 11 passing | Shortcut validation and replacement, loopback URL enforcement, backend health handling, and runtime path selection |
 | Production frontend build | Passing | TypeScript compilation and optimized Vite output |
 
 The repository also contains generated Windows MSI and NSIS bundle artifacts. A clean-machine installation test and packaged-model verification should still be completed before describing the app as release-ready.
@@ -161,4 +161,4 @@ The most important outcome is not the number of settings or technologies used. I
 
 ## Portfolio summary
 
-SayIt is a local-first Windows text-to-speech utility that reads selected text from any application with a global shortcut. The project combines a compact, caption-led interface with native desktop input capture and an on-device Kokoro speech engine. Its v0.1 implementation validates the end-to-end experience across React, Rust, and Python, with 17 passing automated tests and a successful production frontend build.
+SayIt is a local-first Windows text-to-speech utility that reads selected text from any application with a global shortcut. The project combines a compact, caption-led interface with native desktop input capture and an on-device Kokoro speech engine. Its v0.1 implementation validates the end-to-end experience across React, Rust, and Python, with 53 passing automated tests and a successful production frontend build.

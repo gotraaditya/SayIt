@@ -6,6 +6,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: read
+
 jobs:
   build-release:
     runs-on: windows-latest
@@ -84,12 +87,16 @@ jobs:
         run: |
           python -m venv python-backend\venv
           python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\release-tools-requirements.lock.txt
-          python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
+          python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\packaging-requirements.lock.txt
+          python-backend\venv\Scripts\python.exe -m pip install --no-cache-dir --no-build-isolation --require-hashes -r python-backend\requirements.lock.txt
           python-backend\venv\Scripts\python.exe -m unittest discover -s python-backend -p "test_*.py"
 
-      - name: Test Rust
+      - name: Check and test Rust
         working-directory: src-tauri
-        run: cargo test
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
 
       - name: Security audits
         shell: pwsh

@@ -78,23 +78,29 @@ finally {
 }
 
 $python = Resolve-PythonForAudit
+$modelRequirementsLock = "python-backend\model-requirements.lock.txt"
 $releaseToolsRequirementsLock = "python-backend\release-tools-requirements.lock.txt"
 & $python -m pip install --require-hashes -r $releaseToolsRequirementsLock
 if ($LASTEXITCODE -ne 0) {
   throw "release audit tool installation failed with exit code $LASTEXITCODE"
 }
 
-& $python -m pip_audit -r python-backend\requirements.lock.txt --format json --output (Join-Path $auditDir "python-audit.json")
+& $python -m pip_audit -r python-backend\requirements.lock.txt --no-deps --format json --output (Join-Path $auditDir "python-audit.json")
 if ($LASTEXITCODE -ne 0) {
   throw "pip-audit failed with exit code $LASTEXITCODE"
 }
 
-& $python -m pip_audit -r python-backend\packaging-requirements.lock.txt --format json --output (Join-Path $auditDir "python-packaging-audit.json")
+& $python -m pip_audit -r $modelRequirementsLock --no-deps --format json --output (Join-Path $auditDir "python-model-audit.json")
+if ($LASTEXITCODE -ne 0) {
+  throw "model pip-audit failed with exit code $LASTEXITCODE"
+}
+
+& $python -m pip_audit -r python-backend\packaging-requirements.lock.txt --no-deps --format json --output (Join-Path $auditDir "python-packaging-audit.json")
 if ($LASTEXITCODE -ne 0) {
   throw "packaging pip-audit failed with exit code $LASTEXITCODE"
 }
 
-& $python -m pip_audit -r $releaseToolsRequirementsLock --format json --output (Join-Path $auditDir "python-release-tools-audit.json")
+& $python -m pip_audit -r $releaseToolsRequirementsLock --no-deps --format json --output (Join-Path $auditDir "python-release-tools-audit.json")
 if ($LASTEXITCODE -ne 0) {
   throw "release tools pip-audit failed with exit code $LASTEXITCODE"
 }
@@ -106,6 +112,7 @@ $provenance = [ordered]@{
     packageLockSha256 = Get-RequiredFileHash "package-lock.json"
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+    modelRequirementsLockSha256 = Get-RequiredFileHash $modelRequirementsLock
     packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
     releaseToolsRequirementsLockSha256 = Get-RequiredFileHash "python-backend\release-tools-requirements.lock.txt"
   }

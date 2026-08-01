@@ -52,7 +52,32 @@ export function splitTextForSynthesis(text: string) {
   const sentenceChunks =
     trimmed.match(SENTENCE_PATTERN)?.map((chunk) => chunk.trim()) ?? [trimmed];
 
-  return sentenceChunks.flatMap((chunk) => splitLongTextChunk(chunk));
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const sentence of sentenceChunks) {
+    if (!sentence) continue;
+
+    if (sentence.length > MAX_SYNTHESIS_CHUNK_CHARS) {
+      if (current) {
+        chunks.push(current);
+        current = "";
+      }
+      chunks.push(...splitLongTextChunk(sentence));
+      continue;
+    }
+
+    const candidate = current ? `${current} ${sentence}` : sentence;
+    if (candidate.length > MAX_SYNTHESIS_CHUNK_CHARS) {
+      if (current) chunks.push(current);
+      current = sentence;
+    } else {
+      current = candidate;
+    }
+  }
+
+  if (current) chunks.push(current);
+  return chunks;
 }
 
 export function buildCaptionGroups(

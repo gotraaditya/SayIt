@@ -15,6 +15,7 @@ __pycache__
 release/*.conf.json
 release/sbom
 release/audit
+output/
 src-tauri/target
 src-tauri/rust.json
 python-backend/venv

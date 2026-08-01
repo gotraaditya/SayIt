@@ -11,11 +11,20 @@ describe("text processing", () => {
     expect(splitTextForSynthesis("   ")).toEqual([]);
   });
 
-  it("preserves sentence boundaries when possible", () => {
+  it("packs adjacent sentences into continuous synthesis chunks", () => {
     expect(splitTextForSynthesis("Hello there. How are you?")).toEqual([
-      "Hello there.",
-      "How are you?",
+      "Hello there. How are you?",
     ]);
+  });
+
+  it("keeps synthesis chunks within the bounded size", () => {
+    const sentence = "This is a sentence. ";
+    const chunks = splitTextForSynthesis(sentence.repeat(300));
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.every((chunk) => chunk.length <= MAX_SYNTHESIS_CHUNK_CHARS)).toBe(
+      true,
+    );
   });
 
   it("splits long text at bounded chunk sizes", () => {

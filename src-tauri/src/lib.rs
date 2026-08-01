@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -48,6 +48,8 @@ struct StartupStatus {
 
 const DEFAULT_SHORTCUT_STARTUP_ERROR: &str =
     "Default shortcut Alt+S is already in use. Open settings to choose another shortcut.";
+const BACKEND_STARTING_MESSAGE: &str = "Speech service is starting.";
+const BACKEND_READINESS_DEADLINE: Duration = Duration::from_secs(240);
 
 #[cfg(target_os = "windows")]
 #[derive(Clone)]
@@ -334,6 +336,18 @@ fn select_backend_dir(candidates: Vec<PathBuf>) -> Result<PathBuf, String> {
         .ok_or_else(|| "SayIt backend files are missing from the app resources.".to_string())
 }
 
+#[cfg(not(mobile))]
+fn development_python_path(backend_dir: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        backend_dir.join("venv/Scripts/python.exe")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        backend_dir.join("venv/bin/python")
+    }
+}
+
 #[cfg(all(not(mobile), target_os = "windows"))]
 fn packaged_backend_executable_name() -> &'static str {
     "sayit-backend.exe"
@@ -358,49 +372,76 @@ struct BackendProcess {
 }
 
 #[cfg(not(mobile))]
-fn resolve_backend_launch(app: &tauri::AppHandle) -> Result<(BackendLaunch, PathBuf), String> {
-    let resource_dir = app.path().resource_dir().ok();
-    let current_dir = std::env::current_dir()
-        .map_err(|error| format!("Unable to read the current directory: {error}"))?;
+fn packaged_backend_launch(
+    resource_dir: Option<PathBuf>,
+    current_dir: PathBuf,
+    backend_dir: &Path,
+) -> Option<BackendLaunch> {
+    for runtime_dir in backend_runtime_candidates(resource_dir, current_dir) {
+        let executable = runtime_dir.join(packaged_backend_executable_name());
+        if executable.is_file() {
+            return Some(BackendLaunch {
+                program: executable,
+                args: Vec::new(),
+                working_dir: backend_dir.to_path_buf(),
+            });
+        }
+    }
+
+    None
+}
+
+#[cfg(not(mobile))]
+fn development_backend_launch(backend_dir: &Path) -> Option<BackendLaunch> {
+    let python = development_python_path(backend_dir);
+    python.is_file().then(|| BackendLaunch {
+        program: python,
+        args: vec!["backend_server.py".to_string()],
+        working_dir: backend_dir.to_path_buf(),
+    })
+}
+
+#[cfg(not(mobile))]
+fn resolve_backend_launch_from_paths(
+    resource_dir: Option<PathBuf>,
+    current_dir: PathBuf,
+    prefer_development_python: bool,
+) -> Result<(BackendLaunch, PathBuf), String> {
     let backend_dir = select_backend_dir(backend_dir_candidates(
         resource_dir.clone(),
         current_dir.clone(),
     ))?;
 
-    for runtime_dir in backend_runtime_candidates(resource_dir, current_dir) {
-        let executable = runtime_dir.join(packaged_backend_executable_name());
-        if executable.is_file() {
-            return Ok((
-                BackendLaunch {
-                    program: executable,
-                    args: Vec::new(),
-                    working_dir: backend_dir.clone(),
-                },
-                backend_dir,
-            ));
+    if prefer_development_python {
+        if let Some(launch) = development_backend_launch(&backend_dir) {
+            return Ok((launch, backend_dir));
+        }
+        if let Some(launch) = packaged_backend_launch(resource_dir, current_dir, &backend_dir) {
+            return Ok((launch, backend_dir));
+        }
+    } else {
+        if let Some(launch) =
+            packaged_backend_launch(resource_dir.clone(), current_dir.clone(), &backend_dir)
+        {
+            return Ok((launch, backend_dir));
+        }
+        if let Some(launch) = development_backend_launch(&backend_dir) {
+            return Ok((launch, backend_dir));
         }
     }
 
-    #[cfg(target_os = "windows")]
-    let python = backend_dir.join("venv/Scripts/python.exe");
-    #[cfg(not(target_os = "windows"))]
-    let python = backend_dir.join("venv/bin/python");
+    Err(
+        "Packaged backend sidecar is missing and the development Python venv was not found."
+            .to_string(),
+    )
+}
 
-    if !python.is_file() {
-        return Err(
-            "Packaged backend sidecar is missing and the development Python venv was not found."
-                .to_string(),
-        );
-    }
-
-    Ok((
-        BackendLaunch {
-            program: python,
-            args: vec!["backend_server.py".to_string()],
-            working_dir: backend_dir.clone(),
-        },
-        backend_dir,
-    ))
+#[cfg(not(mobile))]
+fn resolve_backend_launch(app: &tauri::AppHandle) -> Result<(BackendLaunch, PathBuf), String> {
+    let resource_dir = app.path().resource_dir().ok();
+    let current_dir = std::env::current_dir()
+        .map_err(|error| format!("Unable to read the current directory: {error}"))?;
+    resolve_backend_launch_from_paths(resource_dir, current_dir, cfg!(debug_assertions))
 }
 
 #[cfg(not(mobile))]
@@ -483,6 +524,27 @@ fn parse_loopback_url(url: &str) -> Result<(String, u16), String> {
 }
 
 #[cfg(not(mobile))]
+fn backend_health_error(response: &str) -> String {
+    let status_line = response.lines().next().unwrap_or("HTTP response was empty");
+    let detail = response
+        .split_once("\r\n\r\n")
+        .and_then(|(_, body)| serde_json::from_str::<serde_json::Value>(body).ok())
+        .and_then(|payload| {
+            payload
+                .get("detail")
+                .and_then(|detail| detail.as_str())
+                .map(str::to_string)
+        });
+
+    match detail {
+        Some(detail) if !detail.is_empty() => {
+            format!("Backend health endpoint is not ready: {status_line}; {detail}")
+        }
+        _ => format!("Backend health endpoint is not ready: {status_line}"),
+    }
+}
+
+#[cfg(not(mobile))]
 fn backend_healthcheck(url: &str, token: &str, timeout: Duration) -> Result<(), String> {
     let (host, port) = parse_loopback_url(url)?;
     let address = (host.as_str(), port)
@@ -507,7 +569,7 @@ fn backend_healthcheck(url: &str, token: &str, timeout: Duration) -> Result<(), 
     if response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200") {
         Ok(())
     } else {
-        Err("Backend health endpoint is not ready.".to_string())
+        Err(backend_health_error(&response))
     }
 }
 
@@ -529,6 +591,8 @@ fn wait_for_backend_health(url: &str, token: &str, deadline: Duration) -> Result
 
 #[cfg(not(mobile))]
 fn spawn_backend(app: &tauri::AppHandle, token: &str) -> Result<BackendProcess, String> {
+    let started = Instant::now();
+    log_desktop_diagnostic(app, "Backend launch started.");
     let (launch, backend_dir) = resolve_backend_launch(app)?;
     let model_dir = backend_dir.join("models/kokoro");
     let log_path = backend_log_path(app);
@@ -558,20 +622,39 @@ fn spawn_backend(app: &tauri::AppHandle, token: &str) -> Result<BackendProcess, 
         .ok_or_else(|| "Unable to read the SayIt backend startup output.".to_string())?;
     let mut reader = BufReader::new(stdout);
     let mut backend_url = String::new();
-    reader
+    let bytes_read = reader
         .read_line(&mut backend_url)
         .map_err(|error| format!("Unable to read the SayIt backend URL: {error}"))?;
     let backend_url = backend_url.trim().to_string();
+
+    if bytes_read == 0 {
+        let status = child
+            .try_wait()
+            .ok()
+            .flatten()
+            .map(|status| format!(" Backend exited with status: {status}."))
+            .unwrap_or_default();
+        terminate_backend(&mut child);
+        return Err(format!(
+            "SayIt backend exited before reporting a URL.{status}"
+        ));
+    }
 
     if !backend_url.starts_with("http://127.0.0.1:") {
         terminate_backend(&mut child);
         return Err("SayIt backend did not report a valid loopback URL.".to_string());
     }
-    if let Err(error) = wait_for_backend_health(&backend_url, token, Duration::from_secs(20)) {
+    if let Err(error) = wait_for_backend_health(&backend_url, token, BACKEND_READINESS_DEADLINE) {
         terminate_backend(&mut child);
         return Err(format!("SayIt backend failed readiness check: {error}"));
     }
-    log_desktop_diagnostic(app, &format!("Backend ready: {backend_url}"));
+    log_desktop_diagnostic(
+        app,
+        &format!(
+            "Backend ready: {backend_url} after {:?}.",
+            started.elapsed()
+        ),
+    );
 
     thread::spawn(move || {
         for line in reader.lines().map_while(Result::ok) {
@@ -679,7 +762,7 @@ pub fn run() {
 
             let tray = TrayIconBuilder::with_id("sayit")
                 .tooltip("SayIt is running")
-                .icon(app.default_window_icon().cloned().unwrap())
+                .icon(tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("logo is valid"))
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
@@ -721,33 +804,11 @@ pub fn run() {
                 .is_none()
                 .then(|| DEFAULT_SHORTCUT_STARTUP_ERROR.to_string());
 
-            let token_for_monitor = backend_token.clone();
-            match spawn_backend(app.handle(), &backend_token) {
-                Ok(process) => {
-                    if let Ok(mut backend_child) = setup_backend_child.lock() {
-                        *backend_child = Some(process.child);
-                    }
-                    if let Ok(mut backend) = setup_backend_connection.lock() {
-                        backend.url = process.url;
-                        backend.token = backend_token.clone();
-                        backend.available = true;
-                        backend.last_error.clear();
-                    }
-                }
-                Err(error) => {
-                    eprintln!("SayIt backend startup failed: {error}");
-                    #[cfg(not(mobile))]
-                    log_desktop_diagnostic(
-                        app.handle(),
-                        &format!("Backend startup failed: {error}"),
-                    );
-                    if let Ok(mut backend) = setup_backend_connection.lock() {
-                        backend.url.clear();
-                        backend.token = backend_token.clone();
-                        backend.available = false;
-                        backend.last_error = error.clone();
-                    }
-                }
+            if let Ok(mut backend) = setup_backend_connection.lock() {
+                backend.url.clear();
+                backend.token = backend_token.clone();
+                backend.available = false;
+                backend.last_error = BACKEND_STARTING_MESSAGE.to_string();
             }
             app.manage(AppState {
                 current_shortcut: Mutex::new(initial_shortcut),
@@ -757,71 +818,78 @@ pub fn run() {
             let monitor_backend_child = Arc::clone(&setup_backend_child);
             let monitor_backend_connection = Arc::clone(&setup_backend_connection);
             let monitor_app = app.handle().clone();
+            let token_for_monitor = backend_token.clone();
             thread::spawn(move || {
                 let mut consecutive_health_failures = 0_u8;
+                let mut needs_restart = true;
                 loop {
-                    thread::sleep(Duration::from_secs(2));
-                    let mut needs_restart = {
-                        let mut child_guard = match monitor_backend_child.lock() {
-                            Ok(guard) => guard,
-                            Err(_) => return,
-                        };
-                        match child_guard
-                            .as_mut()
-                            .and_then(|child| child.try_wait().ok().flatten())
-                        {
-                            Some(status) => {
-                                eprintln!("SayIt backend exited: {status}");
-                                log_desktop_diagnostic(
-                                    &monitor_app,
-                                    &format!("Backend process exited: {status}"),
-                                );
-                                *child_guard = None;
-                                true
-                            }
-                            None => child_guard.is_none(),
-                        }
-                    };
-
                     if !needs_restart {
-                        let health_target =
-                            monitor_backend_connection.lock().ok().and_then(|backend| {
-                                if backend.available && !backend.url.is_empty() {
-                                    Some((backend.url.clone(), token_for_monitor.clone()))
-                                } else {
-                                    None
-                                }
-                            });
-
-                        if let Some((url, token)) = health_target {
-                            match backend_healthcheck(&url, &token, Duration::from_millis(500)) {
-                                Ok(()) => {
-                                    consecutive_health_failures = 0;
-                                }
-                                Err(error) => {
-                                    consecutive_health_failures =
-                                        consecutive_health_failures.saturating_add(1);
-                                    eprintln!("SayIt backend health check failed: {error}");
+                        thread::sleep(Duration::from_secs(2));
+                        needs_restart = {
+                            let mut child_guard = match monitor_backend_child.lock() {
+                                Ok(guard) => guard,
+                                Err(_) => return,
+                            };
+                            match child_guard
+                                .as_mut()
+                                .and_then(|child| child.try_wait().ok().flatten())
+                            {
+                                Some(status) => {
+                                    eprintln!("SayIt backend exited: {status}");
                                     log_desktop_diagnostic(
                                         &monitor_app,
-                                        &format!(
-                                            "Backend health check failed: {error}; consecutive failures: {consecutive_health_failures}"
-                                        ),
+                                        &format!("Backend process exited: {status}"),
                                     );
+                                    *child_guard = None;
+                                    true
+                                }
+                                None => child_guard.is_none(),
+                            }
+                        };
 
-                                    if consecutive_health_failures >= 3 {
+                        if !needs_restart {
+                            let health_target =
+                                monitor_backend_connection.lock().ok().and_then(|backend| {
+                                    if backend.available && !backend.url.is_empty() {
+                                        Some((backend.url.clone(), token_for_monitor.clone()))
+                                    } else {
+                                        None
+                                    }
+                                });
+
+                            if let Some((url, token)) = health_target {
+                                match backend_healthcheck(&url, &token, Duration::from_millis(500))
+                                {
+                                    Ok(()) => {
+                                        consecutive_health_failures = 0;
+                                    }
+                                    Err(error) => {
+                                        consecutive_health_failures =
+                                            consecutive_health_failures.saturating_add(1);
+                                        eprintln!("SayIt backend health check failed: {error}");
                                         log_desktop_diagnostic(
                                             &monitor_app,
-                                            "Backend health check failed repeatedly; restarting backend.",
+                                            &format!(
+                                                "Backend health check failed: {error}; consecutive failures: {consecutive_health_failures}"
+                                            ),
                                         );
-                                        if let Ok(mut child_guard) = monitor_backend_child.lock() {
-                                            if let Some(ref mut child) = *child_guard {
-                                                terminate_backend(child);
+
+                                        if consecutive_health_failures >= 3 {
+                                            log_desktop_diagnostic(
+                                                &monitor_app,
+                                                "Backend health check failed repeatedly; restarting backend.",
+                                            );
+                                            if let Ok(mut child_guard) =
+                                                monitor_backend_child.lock()
+                                            {
+                                                if let Some(ref mut child) = *child_guard {
+                                                    terminate_backend(child);
+                                                }
+                                                *child_guard = None;
                                             }
-                                            *child_guard = None;
+                                            consecutive_health_failures = 0;
+                                            needs_restart = true;
                                         }
-                                        consecutive_health_failures = 0;
-                                        needs_restart = true;
                                     }
                                 }
                             }
@@ -834,11 +902,22 @@ pub fn run() {
                         continue;
                     }
 
+                    let should_emit_restarting = monitor_backend_connection
+                        .lock()
+                        .map(|backend| !backend.url.is_empty())
+                        .unwrap_or(false);
                     if let Ok(mut backend) = monitor_backend_connection.lock() {
                         backend.available = false;
-                        backend.last_error = "Speech service is restarting.".to_string();
+                        backend.last_error = if backend.url.is_empty() {
+                            BACKEND_STARTING_MESSAGE.to_string()
+                        } else {
+                            "Speech service is restarting.".to_string()
+                        };
                     }
-                    let _ = monitor_app.emit("backend_status", "Speech service is restarting.");
+                    if should_emit_restarting {
+                        let _ =
+                            monitor_app.emit("backend_status", "Speech service is restarting.");
+                    }
 
                     match spawn_backend(&monitor_app, &token_for_monitor) {
                         Ok(process) => {
@@ -856,6 +935,7 @@ pub fn run() {
                                 &monitor_app,
                                 &format!("Backend restart succeeded: {}", process.url),
                             );
+                            needs_restart = false;
                         }
                         Err(error) => {
                             eprintln!("SayIt backend restart failed: {error}");
@@ -869,6 +949,7 @@ pub fn run() {
                             }
                             let _ = monitor_app.emit("backend_status", error);
                             thread::sleep(Duration::from_secs(3));
+                            needs_restart = true;
                         }
                     }
                 }
@@ -924,8 +1005,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        backend_dir_candidates, backend_healthcheck, parse_loopback_url, select_backend_dir,
-        should_replace_shortcut, validate_shortcut,
+        backend_dir_candidates, backend_health_error, backend_healthcheck, development_python_path,
+        packaged_backend_executable_name, parse_loopback_url, resolve_backend_launch_from_paths,
+        select_backend_dir, should_replace_shortcut, validate_shortcut,
     };
     use std::fs;
     use std::io::{Read, Write};
@@ -1023,6 +1105,21 @@ mod tests {
     }
 
     #[test]
+    fn backend_health_error_includes_json_detail() {
+        let response = concat!(
+            "HTTP/1.1 503 Service Unavailable\r\n",
+            "Content-Type: application/json\r\n",
+            "\r\n",
+            "{\"detail\":\"TTS service is unavailable. Kokoro import failed.\"}"
+        );
+
+        assert_eq!(
+            backend_health_error(response),
+            "Backend health endpoint is not ready: HTTP/1.1 503 Service Unavailable; TTS service is unavailable. Kokoro import failed."
+        );
+    }
+
+    #[test]
     fn prefers_bundled_backend_resources() {
         let unique = format!(
             "sayit-backend-test-{}",
@@ -1070,6 +1167,41 @@ mod tests {
         .unwrap();
 
         assert_eq!(selected, root.join("src-tauri/../python-backend"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dev_launch_prefers_venv_over_repo_local_packaged_runtime() {
+        let unique = format!(
+            "sayit-backend-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let root = std::env::temp_dir().join(unique);
+        let current_dir = root.join("src-tauri");
+        let backend_dir = current_dir.join("../python-backend");
+        let runtime_dir = current_dir.join("../python-backend-runtime");
+        let python = development_python_path(&backend_dir);
+        let packaged_backend = runtime_dir.join(packaged_backend_executable_name());
+
+        fs::create_dir_all(&current_dir).unwrap();
+        fs::create_dir_all(python.parent().unwrap()).unwrap();
+        fs::create_dir_all(&runtime_dir).unwrap();
+        fs::write(backend_dir.join("app.py"), "").unwrap();
+        fs::write(&python, "").unwrap();
+        fs::write(&packaged_backend, "").unwrap();
+
+        let (dev_launch, _) =
+            resolve_backend_launch_from_paths(None, current_dir.clone(), true).unwrap();
+        let (packaged_launch, _) =
+            resolve_backend_launch_from_paths(None, current_dir, false).unwrap();
+
+        assert_eq!(dev_launch.program, python);
+        assert_eq!(dev_launch.args, vec!["backend_server.py".to_string()]);
+        assert_eq!(packaged_launch.program, packaged_backend);
+
         fs::remove_dir_all(root).unwrap();
     }
 }

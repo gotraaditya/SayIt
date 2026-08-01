@@ -65,6 +65,10 @@ const noticesText = existsSync(join(root, "THIRD_PARTY_NOTICES.md"))
   : "";
 const requirements = readFileSync(join(root, "python-backend", "requirements.txt"), "utf8");
 const requirementsLock = readFileSync(join(root, "python-backend", "requirements.lock.txt"), "utf8");
+const modelRequirementsLockPath = join(root, "python-backend", "model-requirements.lock.txt");
+const modelRequirementsLock = existsSync(modelRequirementsLockPath)
+  ? readFileSync(modelRequirementsLockPath, "utf8")
+  : "";
 const packagingRequirementsLockPath = join(root, "python-backend", "packaging-requirements.lock.txt");
 const packagingRequirementsLock = existsSync(packagingRequirementsLockPath)
   ? readFileSync(packagingRequirementsLockPath, "utf8")
@@ -284,8 +288,10 @@ const requiredReleaseEvidenceFragments = [
       "must be a private updater signing key, not a public key.",
       "TAURI_SIGNING_PRIVATE_KEY_PATH",
       "[IO.Path]::IsPathRooted($ConfigPath)",
+      "modelRequirementsLockSha256",
       "packagingRequirementsLockSha256",
       "releaseToolsRequirementsLockSha256",
+      "python-model-audit.json",
       "python-packaging-audit.json",
       "python-release-tools-audit.json",
     ],
@@ -295,9 +301,14 @@ const requiredReleaseEvidenceFragments = [
     buildPythonSidecarText,
     [
       "packaging-requirements.lock.txt",
+      "model-requirements.lock.txt",
       "release-tools-requirements.lock.txt",
+      "Refusing to replace sidecar environment outside the packaging directory",
+      "Remove-Item -LiteralPath $resolvedBuildVenv -Recurse -Force",
+      "pip install --require-hashes --no-deps -r $modelRequirementsLock",
       "pip install --require-hashes -r $packagingRequirementsLock",
       "pip install --require-hashes -r $releaseToolsRequirementsLock",
+      "pip install --no-cache-dir --no-build-isolation --require-hashes -r $requirementsLock",
     ],
   ],
   [
@@ -305,8 +316,11 @@ const requiredReleaseEvidenceFragments = [
     auditSecurityText,
     [
       "python-packaging-audit.json",
+      "python-model-audit.json",
       "python-release-tools-audit.json",
       "install-rust-release-tools.ps1",
+      "model-requirements.lock.txt",
+      "modelRequirementsLockSha256",
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
       "release-tools-requirements.lock.txt",
@@ -317,8 +331,10 @@ const requiredReleaseEvidenceFragments = [
     "scripts/generate-sbom.ps1",
     generateSbomText,
     [
-      "npx.cmd --no-install cyclonedx-npm",
+      "npm.cmd sbom --package-lock-only --sbom-format cyclonedx",
       "install-rust-release-tools.ps1",
+      "model-requirements.lock.txt",
+      "modelRequirementsLockSha256",
       "packaging-requirements.lock.txt",
       "packagingRequirementsLockSha256",
       "release-tools-requirements.lock.txt",
@@ -417,6 +433,17 @@ if (!requirementsLock.includes("--generate-hashes") || !requirementsLock.include
   missing.push("python-backend/requirements.lock.txt must be generated with transitive hashes");
 }
 
+if (!modelRequirementsLock) {
+  missing.push("python-backend/model-requirements.lock.txt must exist");
+} else {
+  if (!/^en-core-web-sm\s+@\s+https:\/\/github\.com\/explosion\/spacy-models\/releases\/download\/en_core_web_sm-3\.8\.0\/en_core_web_sm-3\.8\.0-py3-none-any\.whl/im.test(modelRequirementsLock)) {
+    missing.push("python-backend/model-requirements.lock.txt must pin the official en-core-web-sm 3.8.0 wheel");
+  }
+  if (!modelRequirementsLock.includes("--hash=sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85")) {
+    missing.push("python-backend/model-requirements.lock.txt must pin the reviewed en-core-web-sm wheel hash");
+  }
+}
+
 if (!packagingRequirementsLock) {
   missing.push("python-backend/packaging-requirements.lock.txt must exist");
 } else {
@@ -476,12 +503,8 @@ for (const [label, text] of [
   }
 }
 
-if (!packageManifestText.includes('"@cyclonedx/cyclonedx-npm": "6.0.0"')) {
-  missing.push("package.json must pin @cyclonedx/cyclonedx-npm for locked npm SBOM generation");
-}
-
-if (!packageLockText.includes('"node_modules/@cyclonedx/cyclonedx-npm"')) {
-  missing.push("package-lock.json must lock @cyclonedx/cyclonedx-npm");
+if (packageManifestText.includes("@cyclonedx/cyclonedx-npm") || packageLockText.includes("node_modules/@cyclonedx/cyclonedx-npm")) {
+  missing.push("Remove the vulnerable external npm CycloneDX generator; npm's built-in sbom command is required");
 }
 
 for (const [label, text] of [
@@ -500,8 +523,15 @@ for (const [label, text] of [
   }
 }
 
-if (/npx\.cmd\s+--yes/i.test(generateSbomText) || !generateSbomText.includes("npx.cmd --no-install cyclonedx-npm")) {
-  missing.push("scripts/generate-sbom.ps1 must use locked npm CycloneDX tooling with npx --no-install");
+if (!generateSbomText.includes("npm.cmd sbom --package-lock-only --sbom-format cyclonedx")) {
+  missing.push("scripts/generate-sbom.ps1 must use npm's built-in CycloneDX generator");
+}
+
+if (
+  !generateSbomText.includes("cargo metadata --no-deps --format-version 1") ||
+  generateSbomText.includes('"tauri-app.cdx.json"')
+) {
+  missing.push("scripts/generate-sbom.ps1 must derive the Rust SBOM filename from Cargo metadata");
 }
 
 if (!/MIT License/i.test(licenseText)) {

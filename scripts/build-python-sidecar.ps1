@@ -17,8 +17,10 @@ $backendDir = Join-Path $root "python-backend"
 $modelsDir = Join-Path $backendDir "models\kokoro"
 $voicesDir = Join-Path $modelsDir "voices"
 $runtimeDir = Join-Path $root "python-backend-runtime"
-$buildVenv = Join-Path $root ".packaging\python-sidecar-venv"
+$packagingRoot = [IO.Path]::GetFullPath((Join-Path $root ".packaging"))
+$buildVenv = Join-Path $packagingRoot "python-sidecar-venv"
 $requirementsLock = Join-Path $backendDir "requirements.lock.txt"
+$modelRequirementsLock = Join-Path $backendDir "model-requirements.lock.txt"
 $packagingRequirementsLock = Join-Path $backendDir "packaging-requirements.lock.txt"
 $releaseToolsRequirementsLock = Join-Path $backendDir "release-tools-requirements.lock.txt"
 $requiredVoices = @(
@@ -35,10 +37,13 @@ $requiredVoices = @(
   "am_onyx"
 )
 
-New-Item -ItemType Directory -Force -Path $modelsDir, $voicesDir, $runtimeDir | Out-Null
+New-Item -ItemType Directory -Force -Path $modelsDir, $voicesDir, $runtimeDir, $packagingRoot | Out-Null
 
 if (-not (Test-Path $requirementsLock)) {
   throw "Missing $requirementsLock. Regenerate it with pip-compile --allow-unsafe --generate-hashes before packaging."
+}
+if (-not (Test-Path $modelRequirementsLock)) {
+  throw "Missing $modelRequirementsLock. Packaged language models must be pinned with hashes before release."
 }
 if (-not (Test-Path $packagingRequirementsLock)) {
   throw "Missing $packagingRequirementsLock. Packaging tools must be pinned with hashes before release."
@@ -47,14 +52,21 @@ if (-not (Test-Path $releaseToolsRequirementsLock)) {
   throw "Missing $releaseToolsRequirementsLock. Release tools must be pinned with hashes before release."
 }
 
-if (-not (Test-Path $buildVenv)) {
-  Invoke-Checked $Python -m venv $buildVenv
+if (Test-Path -LiteralPath $buildVenv) {
+  $resolvedBuildVenv = [IO.Path]::GetFullPath((Resolve-Path -LiteralPath $buildVenv).Path)
+  $expectedPrefix = $packagingRoot.TrimEnd("\", "/") + [IO.Path]::DirectorySeparatorChar
+  if (-not $resolvedBuildVenv.StartsWith($expectedPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to replace sidecar environment outside the packaging directory: $resolvedBuildVenv"
+  }
+  Remove-Item -LiteralPath $resolvedBuildVenv -Recurse -Force
 }
+Invoke-Checked $Python -m venv $buildVenv
 
 $venvPython = Join-Path $buildVenv "Scripts\python.exe"
 Invoke-Checked $venvPython -m pip install --require-hashes -r $releaseToolsRequirementsLock
-Invoke-Checked $venvPython -m pip install --require-hashes -r $requirementsLock
 Invoke-Checked $venvPython -m pip install --require-hashes -r $packagingRequirementsLock
+Invoke-Checked $venvPython -m pip install --no-cache-dir --no-build-isolation --require-hashes -r $requirementsLock
+Invoke-Checked $venvPython -m pip install --require-hashes --no-deps -r $modelRequirementsLock
 
 $downloadScriptPath = Join-Path $root ".packaging\download_kokoro_assets.py"
 $downloadScript = @'
@@ -123,6 +135,12 @@ Invoke-Checked $venvPython -m PyInstaller `
   --clean `
   --onefile `
   --name sayit-backend `
+  --collect-all en_core_web_sm `
+  --collect-data espeakng_loader `
+  --collect-data language_tags `
+  --collect-data misaki `
+  --collect-data rfc3987_syntax `
+  --copy-metadata en-core-web-sm `
   --distpath $distDir `
   --workpath $buildDir `
   --specpath (Join-Path $root ".packaging") `

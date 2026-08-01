@@ -1,11 +1,16 @@
 import contextlib
 import io
+import os
+import socket
 import unittest
 
 import backend_server
 
 
 class BackendServerStartupTests(unittest.TestCase):
+    def tearDown(self):
+        os.environ.pop("SAYIT_BACKEND_PORT", None)
+
     def test_windows_parent_monitor_uses_wait_handle_when_available(self):
         events: list[tuple[str, int]] = []
 
@@ -30,16 +35,20 @@ class BackendServerStartupTests(unittest.TestCase):
 
         self.assertEqual(events, [("wait", 1234), ("poll", 1234)])
 
-    def test_app_load_failure_does_not_announce_or_bind_socket(self):
+    def test_backend_url_is_announced_before_app_load(self):
         events: list[str] = []
+
+        class FakeSocket:
+            def getsockname(self):
+                events.append("getsockname")
+                return ("127.0.0.1", 49152)
+
+            def close(self):
+                events.append("close")
 
         def load_app():
             events.append("load_app")
             raise RuntimeError("model load failed")
-
-        def socket_factory():
-            events.append("socket")
-            raise AssertionError("socket should not be created before app load succeeds")
 
         output = io.StringIO()
 
@@ -47,12 +56,12 @@ class BackendServerStartupTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "model load failed"):
                 backend_server.run_backend(
                     load_app=load_app,
-                    socket_factory=socket_factory,
+                    socket_factory=lambda: FakeSocket(),
                     server_factory=lambda _app: None,
                 )
 
-        self.assertEqual(events, ["load_app"])
-        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(events, ["getsockname", "load_app", "close"])
+        self.assertEqual(output.getvalue(), "http://127.0.0.1:49152\n")
 
     def test_backend_url_is_announced_before_server_run(self):
         events: list[str] = []
@@ -61,6 +70,9 @@ class BackendServerStartupTests(unittest.TestCase):
             def getsockname(self):
                 events.append("getsockname")
                 return ("127.0.0.1", 49152)
+
+            def close(self):
+                events.append("close")
 
         class FakeServer:
             def run(self, sockets):
@@ -77,12 +89,41 @@ class BackendServerStartupTests(unittest.TestCase):
             )
 
         self.assertEqual(output.getvalue(), "http://127.0.0.1:49152\n")
-        self.assertEqual(events, ["getsockname", ("run", [fake_socket])])
+        self.assertEqual(events, ["getsockname", ("run", [fake_socket]), "close"])
+
+    def test_requested_occupied_port_falls_back_to_free_port(self):
+        occupied_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        occupied_socket.bind(("127.0.0.1", 0))
+        occupied_socket.listen(1)
+        occupied_port = occupied_socket.getsockname()[1]
+        os.environ["SAYIT_BACKEND_PORT"] = str(occupied_port)
+
+        try:
+            server_socket = backend_server.create_loopback_socket()
+            try:
+                self.assertNotEqual(server_socket.getsockname()[1], occupied_port)
+            finally:
+                server_socket.close()
+        finally:
+            occupied_socket.close()
+
+    def test_invalid_requested_port_uses_free_port(self):
+        os.environ["SAYIT_BACKEND_PORT"] = "not-a-port"
+
+        server_socket = backend_server.create_loopback_socket()
+        try:
+            self.assertEqual(server_socket.getsockname()[0], "127.0.0.1")
+            self.assertGreater(server_socket.getsockname()[1], 0)
+        finally:
+            server_socket.close()
 
     def test_noisy_app_load_does_not_corrupt_backend_url_announcement(self):
         class FakeSocket:
             def getsockname(self):
                 return ("127.0.0.1", 49152)
+
+            def close(self):
+                pass
 
         class FakeServer:
             def run(self, sockets):

@@ -380,6 +380,7 @@ if ($sbomProvenance) {
     packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+    modelRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\model-requirements.lock.txt")
     packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
     releaseToolsRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\release-tools-requirements.lock.txt")
   }
@@ -416,6 +417,7 @@ if ($auditProvenance) {
     packageLockSha256 = Get-RequiredFileHash (Join-Path $root "package-lock.json")
     cargoLockSha256 = Get-RequiredFileHash (Join-Path $root "src-tauri\Cargo.lock")
     requirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\requirements.lock.txt")
+    modelRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\model-requirements.lock.txt")
     packagingRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\packaging-requirements.lock.txt")
     releaseToolsRequirementsLockSha256 = Get-RequiredFileHash (Join-Path $root "python-backend\release-tools-requirements.lock.txt")
   }
@@ -471,6 +473,17 @@ if ($pythonPackagingAudit) {
   )
   if ($pythonPackagingVulnerabilities.Count -gt 0) {
     Add-Failure "Python packaging audit report contains known vulnerabilities."
+  }
+}
+
+$pythonModelAudit = Read-JsonEvidence (Join-Path $auditDir "python-model-audit.json") "vulnerability audit report"
+if ($pythonModelAudit) {
+  $pythonModelVulnerabilities = @(
+    $pythonModelAudit.dependencies |
+      Where-Object { $_.vulns -and @($_.vulns).Count -gt 0 }
+  )
+  if ($pythonModelVulnerabilities.Count -gt 0) {
+    Add-Failure "Python model audit report contains known vulnerabilities."
   }
 }
 

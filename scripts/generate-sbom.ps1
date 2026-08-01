@@ -26,15 +26,33 @@ if ($LASTEXITCODE -ne 0 -or -not $sourceCommit) {
   throw "SBOM reports must be tied to a real Git commit."
 }
 
-Invoke-Checked npx.cmd --no-install cyclonedx-npm --output-file (Join-Path $sbomDir "npm.cdx.json")
+$npmSbom = & npm.cmd sbom --package-lock-only --sbom-format cyclonedx
+if ($LASTEXITCODE -ne 0) {
+  throw "npm sbom failed with exit code $LASTEXITCODE"
+}
+$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+[IO.File]::WriteAllText(
+  (Join-Path $sbomDir "npm.cdx.json"),
+  ($npmSbom -join [Environment]::NewLine),
+  $utf8WithoutBom
+)
 
 $installRustReleaseTools = Join-Path $PSScriptRoot "install-rust-release-tools.ps1"
 Invoke-Checked powershell -NoProfile -ExecutionPolicy Bypass -File $installRustReleaseTools
 
 Push-Location src-tauri
 try {
+  $cargoMetadata = (& cargo metadata --no-deps --format-version 1) | ConvertFrom-Json
+  if ($LASTEXITCODE -ne 0 -or @($cargoMetadata.packages).Count -ne 1) {
+    throw "Expected exactly one Cargo package when determining the Rust SBOM filename."
+  }
+
+  $rustSbomSource = "$($cargoMetadata.packages[0].name).cdx.json"
   Invoke-Checked cargo cyclonedx --format json
-  Move-Item -Force -LiteralPath "tauri-app.cdx.json" -Destination (Join-Path $sbomDir "rust.cdx.json")
+  if (-not (Test-Path -LiteralPath $rustSbomSource)) {
+    throw "cargo-cyclonedx did not create the expected SBOM: $rustSbomSource"
+  }
+  Move-Item -Force -LiteralPath $rustSbomSource -Destination (Join-Path $sbomDir "rust.cdx.json")
 }
 finally {
   Pop-Location
@@ -56,6 +74,7 @@ $provenance = [ordered]@{
     packageLockSha256 = Get-RequiredFileHash "package-lock.json"
     cargoLockSha256 = Get-RequiredFileHash "src-tauri\Cargo.lock"
     requirementsLockSha256 = Get-RequiredFileHash "python-backend\requirements.lock.txt"
+    modelRequirementsLockSha256 = Get-RequiredFileHash "python-backend\model-requirements.lock.txt"
     packagingRequirementsLockSha256 = Get-RequiredFileHash "python-backend\packaging-requirements.lock.txt"
     releaseToolsRequirementsLockSha256 = Get-RequiredFileHash "python-backend\release-tools-requirements.lock.txt"
   }

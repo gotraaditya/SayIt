@@ -20,7 +20,7 @@
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
-        "visible": true
+        "visible": false
       }
     ],
     "security": {

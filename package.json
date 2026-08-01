@@ -1,7 +1,12 @@
 {
-  "name": "tauri-app",
+  "name": "sayit",
   "private": true,
   "version": "0.1.0",
+  "description": "A privacy-first Windows desktop app that reads selected text aloud using local speech synthesis.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -29,13 +34,12 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "6.0.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.5.2",
-    "postcss": "^8.5.17",
+    "postcss": "^8.5.25",
     "tailwindcss": "^4.3.2",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",

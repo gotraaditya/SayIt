@@ -2,7 +2,16 @@
 
 SayIt is a local Windows desktop reader built with Tauri, React, and a local FastAPI/Kokoro TTS backend. Press the global shortcut, SayIt copies the current selection, restores the prior text clipboard value, and reads the selected text aloud from a small always-on-top widget.
 
+![SayIt logo](docs/assets/brand/logo-preview.png)
+
 Read the [project case study](CASE_STUDY.md) for the product problem, interaction design, architecture, validation, trade-offs, and recommended next steps.
+
+## Project Status
+
+SayIt is pre-1.0 software intended for Windows. The source, tests, release
+automation, and offline packaging workflow are available, but official
+installers should only be published after the signed-release gates in
+[`docs/RELEASE.md`](docs/RELEASE.md) pass.
 
 ## Requirements
 
@@ -22,7 +31,10 @@ Install backend dependencies with:
 
 ```powershell
 python -m venv python-backend\venv
-python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\requirements.lock.txt
+python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\release-tools-requirements.lock.txt
+python-backend\venv\Scripts\python.exe -m pip install --require-hashes -r python-backend\packaging-requirements.lock.txt
+python-backend\venv\Scripts\python.exe -m pip install --no-cache-dir --no-build-isolation --require-hashes -r python-backend\requirements.lock.txt
+python-backend\venv\Scripts\python.exe -m pip install --require-hashes --no-deps -r python-backend\model-requirements.lock.txt
 ```
 
 Release builds must not bundle `python-backend\venv`. Build a fresh CPU-only sidecar from the hash-pinned lockfile and offline Kokoro assets instead:
@@ -32,7 +44,10 @@ Release builds must not bundle `python-backend\venv`. Build a fresh CPU-only sid
 npm run tauri build
 ```
 
-The sidecar script installs from `python-backend\requirements.lock.txt` with `--require-hashes`, creates `python-backend-runtime\sayit-backend.exe`, downloads `config.json`, `kokoro-v1_0.pth`, and all supported voice `.pt` files into `python-backend\models\kokoro`, and writes `SHA256SUMS.txt`.
+The sidecar script installs runtime and model dependencies from hash-pinned
+lockfiles, creates `python-backend-runtime\sayit-backend.exe`, downloads
+`config.json`, `kokoro-v1_0.pth`, and all supported voice `.pt` files into
+`python-backend\models\kokoro`, and writes `SHA256SUMS.txt`.
 
 ## Development
 
@@ -109,3 +124,15 @@ npm run tauri build
 - If the global shortcut does not work, choose a shortcut with at least one modifier and avoid reserved combinations such as `Ctrl+C`, `Ctrl+V`, `Alt+Tab`, or `Alt+F4`.
 - If packaging fails, install the Tauri Windows build prerequisites and rerun `npm run tauri build`.
 - If the app cannot contact the backend, confirm no security software is blocking loopback connections to `127.0.0.1`.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
+opening an issue or pull request. Report suspected vulnerabilities privately
+using [SECURITY.md](SECURITY.md).
+
+## License
+
+SayIt is licensed under the [MIT License](LICENSE). Bundled dependencies and
+model assets retain their respective licenses; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

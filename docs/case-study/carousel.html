@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SayIt - Product Case Study Carousel</title>
+    <link rel="stylesheet" href="./carousel.css" />
+  </head>
+  <body>
+    <main class="carousel" aria-label="SayIt product case study carousel">
+      <section class="slide slide-cover" id="slide-1" data-slide="01">
+        <div class="topline">
+          <span class="eyebrow">Product case study</span>
+          <span class="version">Windows / v0.1</span>
+        </div>
+
+        <div class="cover-copy">
+          <div class="brand-lockup">
+            <img class="brand-icon" src="../assets/brand/logo.svg" alt="SayIt" />
+            <span>SayIt</span>
+          </div>
+          <h1>One shortcut between <span class="teal">seeing text</span> and <span class="amber">hearing it.</span></h1>
+          <p>A local-first desktop reader designed to make text-to-speech feel like a native Windows action.</p>
+        </div>
+
+        <div class="cover-visual" aria-hidden="true">
+          <div class="selection-sheet">
+            <span class="sheet-label">RESEARCH_NOTES.TXT</span>
+            <div class="text-line w-82"></div>
+            <div class="text-line w-94"></div>
+            <div class="selected-line">Listening should begin where reading already happens.</div>
+            <div class="text-line w-70"></div>
+            <div class="text-line w-88"></div>
+          </div>
+          <div class="shortcut-key"><span>ALT</span><b>+</b><span>S</span></div>
+          <div class="widget-shell widget-reading">
+            <div class="widget-main">
+              <div class="widget-header"><strong><i></i> SayIt</strong><span>Reading</span></div>
+              <div class="caption-box">
+                <b>Listening should begin where reading already happens.</b>
+                <span>No copy, paste, or context switch required.</span>
+              </div>
+            </div>
+            <div class="widget-rail"><span>1.0x</span><span class="rail-icon">&#9881;</span><span class="rail-icon">&#10005;</span></div>
+          </div>
+          <div class="sound-path"><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+
+        <footer><span>Selected text. Spoken privately.</span><b>01 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-2" data-slide="02">
+        <div class="topline">
+          <span class="eyebrow">The opportunity</span>
+          <span class="version">Reduce interaction cost</span>
+        </div>
+        <div class="title-block narrow">
+          <h2>Text-to-speech was useful.<br /><span class="muted">Starting it was the problem.</span></h2>
+          <p>Most reading tools interrupt the task they are meant to support.</p>
+        </div>
+
+        <div class="before-after">
+          <div class="workflow legacy">
+            <div class="workflow-label"><span>Conventional flow</span><b>4+ steps</b></div>
+            <div class="workflow-steps">
+              <span>Select</span><i></i><span>Copy</span><i></i><span>Switch app</span><i></i><span>Paste + play</span>
+            </div>
+            <p>The user leaves their reading context before the first word is spoken.</p>
+          </div>
+          <div class="workflow sayit-flow">
+            <div class="workflow-label"><span>SayIt flow</span><b>1 gesture</b></div>
+            <div class="one-gesture">
+              <span class="selection-chip">Select any text</span>
+              <div class="shortcut-key small"><span>ALT</span><b>+</b><span>S</span></div>
+              <div class="wave-mark"><i></i><i></i><i></i><i></i></div>
+            </div>
+            <p>The interaction stays attached to the content, not to another app.</p>
+          </div>
+        </div>
+
+        <div class="insight-strip"><span>Design question</span><strong>What if listening were as immediate as copying?</strong></div>
+        <footer><span>Problem framing</span><b>02 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-3" data-slide="03">
+        <div class="topline">
+          <span class="eyebrow">Product intent</span>
+          <span class="version">Four principles</span>
+        </div>
+        <div class="title-block">
+          <h2>Make listening feel like an <span class="teal">operating-system action.</span></h2>
+          <p>The product had to be fast enough to disappear into a user&#39;s existing reading habits.</p>
+        </div>
+
+        <div class="principle-grid">
+          <article><b>01</b><h3>One gesture</h3><p>A global shortcut works across applications.</p><span class="principle-glyph key-glyph">ALT + S</span></article>
+          <article><b>02</b><h3>Quiet presence</h3><p>A small widget appears only around playback.</p><span class="principle-glyph pulse-glyph"><i></i><i></i><i></i></span></article>
+          <article><b>03</b><h3>Local by default</h3><p>Selected text and speech remain on the device.</p><span class="principle-glyph local-glyph">127.0.0.1</span></article>
+          <article><b>04</b><h3>Always show state</h3><p>Ready, loading, reading, and recovery stay legible.</p><span class="principle-glyph state-glyph"><i></i><i></i><i></i><i></i></span></article>
+        </div>
+        <div class="quote-line">"Present when useful. Quiet when not."</div>
+        <footer><span>Experience principles</span><b>03 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-4" data-slide="04">
+        <div class="topline">
+          <span class="eyebrow">Core experience</span>
+          <span class="version">Select &rarr; shortcut &rarr; speech</span>
+        </div>
+        <div class="title-block narrow">
+          <h2>Three moments.<br /><span class="muted">One uninterrupted task.</span></h2>
+        </div>
+
+        <div class="flow-story">
+          <article class="flow-step">
+            <div class="step-number">01</div>
+            <div class="step-visual selection-card">
+              <span>Any Windows application</span>
+              <p>Long-form reading becomes easier when <mark>listening starts in place.</mark></p>
+            </div>
+            <div class="step-copy"><h3>Select</h3><p>Highlight text without opening a dedicated reader.</p></div>
+          </article>
+          <div class="flow-connector"><i></i></div>
+          <article class="flow-step">
+            <div class="step-number">02</div>
+            <div class="step-visual key-stage"><div class="shortcut-key large"><span>ALT</span><b>+</b><span>S</span></div></div>
+            <div class="step-copy"><h3>Invoke</h3><p>The global shortcut captures the selection and restores the clipboard.</p></div>
+          </article>
+          <div class="flow-connector"><i></i></div>
+          <article class="flow-step">
+            <div class="step-number">03</div>
+            <div class="step-visual listen-stage"><div class="ring"></div><div class="wave-mark large-wave"><i></i><i></i><i></i><i></i><i></i></div></div>
+            <div class="step-copy"><h3>Listen</h3><p>Playback begins locally with current and upcoming captions.</p></div>
+          </article>
+        </div>
+        <footer><span>Interaction model</span><b>04 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-5" data-slide="05">
+        <div class="topline">
+          <span class="eyebrow">Interaction design</span>
+          <span class="version">328 x 112 px at rest</span>
+        </div>
+        <div class="title-block">
+          <h2>A micro-widget that knows <span class="amber">when to stay quiet.</span></h2>
+          <p>Enough context to understand playback, without covering the source material.</p>
+        </div>
+
+        <div class="widget-showcase">
+          <div class="actual-capture">
+            <span class="capture-label">REAL UI / RESTING STATE</span>
+            <img src="./assets/widget-idle.png" alt="SayIt compact widget in its resting state" />
+          </div>
+          <div class="widget-shell showcase-reading">
+            <div class="widget-main">
+              <div class="widget-header"><strong><i></i> SayIt</strong><span>Reading</span></div>
+              <div class="caption-box">
+                <b>The current sentence stays visually anchored.</b>
+                <span>The next line waits below with lower contrast.</span>
+              </div>
+            </div>
+            <div class="widget-rail"><span>1.2x</span><span class="rail-icon">&#9881;</span><span class="rail-icon danger">&#10005;</span></div>
+          </div>
+          <div class="dimension-line horizontal"><span>328 px</span></div>
+          <div class="dimension-line vertical"><span>expands for captions</span></div>
+        </div>
+
+        <div class="annotation-row">
+          <div><span>01</span><p>Always on top, near the active display edge.</p></div>
+          <div><span>02</span><p>Speed, settings, and stop remain in one stable rail.</p></div>
+          <div><span>03</span><p>Tray behavior keeps the utility present without a full window.</p></div>
+        </div>
+        <footer><span>Compact surface</span><b>05 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-6" data-slide="06">
+        <div class="topline">
+          <span class="eyebrow">Caption-led playback</span>
+          <span class="version">Audio with visual position</span>
+        </div>
+        <div class="title-block narrow">
+          <h2>Listening still needs a <span class="teal">sense of place.</span></h2>
+          <p>Audio tells users what is being read. Captions tell them where they are.</p>
+        </div>
+
+        <div class="caption-composition">
+          <div class="caption-sequence">
+            <div class="sequence-label">PREVIOUS</div>
+            <p class="previous">The previous line moves away.</p>
+            <div class="sequence-label active-label">CURRENT</div>
+            <p class="current">The spoken sentence receives the strongest contrast.</p>
+            <div class="sequence-label">NEXT</div>
+            <p class="next">The upcoming thought is visible, but quiet.</p>
+          </div>
+          <div class="caption-notes">
+            <article><b>A</b><h3>Measured, not guessed</h3><p>Lines are split against real font width, not raw character count.</p></article>
+            <article><b>B</b><h3>Motion with purpose</h3><p>A short vertical promotion explains progress without demanding attention.</p></article>
+            <article><b>C</b><h3>Accessible by default</h3><p>Reduced-motion preferences remove unnecessary transitions.</p></article>
+          </div>
+        </div>
+        <footer><span>Playback comprehension</span><b>06 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-7" data-slide="07">
+        <div class="topline">
+          <span class="eyebrow">Local-first architecture</span>
+          <span class="version">Privacy as a system constraint</span>
+        </div>
+        <div class="title-block">
+          <h2>The selected text <span class="amber">never needs to leave the device.</span></h2>
+          <p>Privacy is implemented in the architecture, not added as marketing copy.</p>
+        </div>
+
+        <div class="architecture">
+          <div class="arch-node source"><span>01</span><b>Selected text</b><small>Any Windows app</small></div>
+          <div class="arch-line"><i></i></div>
+          <div class="arch-node"><span>02</span><b>Tauri + Rust</b><small>Capture + restore clipboard</small></div>
+          <div class="arch-line"><i></i></div>
+          <div class="arch-node"><span>03</span><b>React</b><small>Sentence-aware chunking</small></div>
+          <div class="arch-line local-line"><i></i><em>LOOPBACK ONLY</em></div>
+          <div class="arch-node local"><span>04</span><b>FastAPI + Kokoro</b><small>Local speech synthesis</small></div>
+          <div class="arch-line"><i></i></div>
+          <div class="arch-node output"><span>05</span><b>WAV + captions</b><small>Private playback</small></div>
+        </div>
+
+        <div class="privacy-band">
+          <div class="privacy-lock"><span></span></div>
+          <div><span>LOCAL BOUNDARY</span><strong>Random 127.0.0.1 port / restricted origins / no public API docs</strong></div>
+          <b>ON DEVICE</b>
+        </div>
+        <footer><span>System design</span><b>07 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-8" data-slide="08">
+        <div class="topline">
+          <span class="eyebrow">Resilience by design</span>
+          <span class="version">Multi-process, explicit states</span>
+        </div>
+        <div class="title-block narrow">
+          <h2>Small utility.<br /><span class="muted">Real edge cases.</span></h2>
+          <p>The experience had to recover cleanly across a React UI, Rust shell, and Python speech process.</p>
+        </div>
+
+        <div class="metrics-row">
+          <div><strong>20K</strong><span>characters accepted by the interface</span></div>
+          <div><strong>4K</strong><span>maximum characters per speech request</span></div>
+          <div><strong>53</strong><span>passing tests: 12 frontend / 30 backend / 11 Rust</span></div>
+        </div>
+
+        <div class="resilience-list">
+          <article><span>01</span><div><h3>Clipboard continuity</h3><p>Restore the previous text clipboard value after selection capture.</p></div></article>
+          <article><span>02</span><div><h3>Bounded synthesis</h3><p>Split long selections at sentence boundaries before local speech requests.</p></div></article>
+          <article><span>03</span><div><h3>Latest request wins</h3><p>Cancellation prevents older playback from overwriting a newer reading.</p></div></article>
+          <article><span>04</span><div><h3>Recoverable failure</h3><p>Loading, error causes, and retry actions stay visible in the compact UI.</p></div></article>
+        </div>
+        <footer><span>Engineering the experience</span><b>08 / 10</b></footer>
+      </section>
+
+      <section class="slide" id="slide-9" data-slide="09">
+        <div class="topline">
+          <span class="eyebrow">Outcome + trade-offs</span>
+          <span class="version">Honest v0.1</span>
+        </div>
+        <div class="title-block">
+          <h2>The full interaction loop works.<br /><span class="teal">The product still has room to grow.</span></h2>
+        </div>
+
+        <div class="outcome-split">
+          <div class="outcome-column shipped">
+            <span class="column-label">VALIDATED IN V0.1</span>
+            <ul>
+              <li>Cross-application selection</li>
+              <li>Global shortcut invocation</li>
+              <li>Local speech synthesis</li>
+              <li>Captioned playback</li>
+              <li>Persistent preferences</li>
+              <li>Cancellation + retry</li>
+            </ul>
+          </div>
+          <div class="outcome-column tradeoffs">
+            <span class="column-label">KNOWN TRADE-OFFS</span>
+            <ul>
+              <li>First read can be slow while the model initializes</li>
+              <li>Packaged runtime currently targets Windows</li>
+              <li>Local processing increases install size</li>
+              <li>Clean-machine distribution still needs validation</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="outcome-statement"><span>Core outcome</span><strong>A multi-screen reading workflow became one selection and one shortcut.</strong></div>
+        <footer><span>What shipped</span><b>09 / 10</b></footer>
+      </section>
+
+      <section class="slide slide-final" id="slide-10" data-slide="10">
+        <div class="topline">
+          <span class="eyebrow">Reflection</span>
+          <span class="version">Design + engineering</span>
+        </div>
+
+        <div class="final-mark"><img src="../assets/brand/logo.svg" alt="" /></div>
+        <div class="final-copy">
+          <h2>Built as a small project.<br /><span class="amber">Treated like a real product.</span></h2>
+          <p>SayIt reinforced a simple lesson: polish is not the number of features. It is how deliberately the product handles context, privacy, state, and failure.</p>
+        </div>
+
+        <div class="lessons">
+          <div><span>01</span><p>Reduce the distance between intent and action.</p></div>
+          <div><span>02</span><p>Let privacy shape architecture from the beginning.</p></div>
+          <div><span>03</span><p>Design the edge cases as part of the main experience.</p></div>
+        </div>
+
+        <div class="final-cta">
+          <span>OPEN SOURCE / PRODUCT DESIGN / DESKTOP ENGINEERING</span>
+          <strong>SayIt</strong>
+          <small>Local-first text-to-speech for Windows</small>
+        </div>
+        <footer><span>Thanks for reading</span><b>10 / 10</b></footer>
+      </section>
+    </main>
+
+    <script>
+      const requestedSlide = new URLSearchParams(window.location.search).get("slide");
+      if (requestedSlide) {
+        document.documentElement.classList.add("export-mode");
+        document.querySelectorAll(".slide").forEach((slide) => {
+          slide.hidden = slide.dataset.slide !== requestedSlide.padStart(2, "0");
+        });
+      }
+    </script>
+  </body>
+</html>

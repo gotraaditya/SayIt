@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible problem with SayIt.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve SayIt. Do not include sensitive selected text, private logs, credentials, or security vulnerabilities in a public issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: SayIt version or commit
+      placeholder: v0.1.0 or a commit SHA
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Start SayIt
+        2. Select non-sensitive sample text
+        3. Press the configured shortcut
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove selected text, usernames, file paths, tokens, and other private information before attaching logs.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue.
+          required: true
+        - label: I removed private or sensitive information from this report.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

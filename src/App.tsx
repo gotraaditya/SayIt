@@ -1,21 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 import { emit, listen } from "@tauri-apps/api/event";
-import { currentMonitor, getCurrentWindow } from "@tauri-apps/api/window";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check as checkForUpdate } from "@tauri-apps/plugin-updater";
 import "./App.css";
 import {
   ACTIVE_SIZE,
-  BACKEND_RETRY_DELAY_MS,
-  BACKEND_STARTUP_ATTEMPTS,
   COMPACT_SIZE,
   PLAYBACK_SPEEDS,
-  SETTINGS_WINDOW,
-  WINDOW_EDGE_MARGIN,
 } from "./appConstants";
+import { SayItBackendClient } from "./backendClient";
 import { splitIntoCaptionLines } from "./captions";
 import { CompactWidget } from "./components/CompactWidget";
 import { SettingsWindow } from "./components/SettingsWindow";
@@ -25,13 +20,17 @@ import {
   MAX_SELECTED_TEXT_CHARS,
   splitTextForSynthesis,
 } from "./textProcessing";
+import {
+  closeSettingsWindow as closeTauriSettingsWindow,
+  getCurrentWindowLabel,
+  hideCurrentWindow,
+  resizeCurrentWindow,
+  showCurrentWindow,
+  startDraggingCurrentWindow,
+  toggleSettingsWindowVisibility,
+} from "./tauriWindows";
 import type { AppStatus, SayItWindow, SettingsUpdate, SurfaceMode } from "./types";
 import { installStartupUpdate } from "./updateFlow";
-
-type BackendConfig = {
-  url: string;
-  token: string;
-};
 
 type StartupStatus = {
   shortcut_error?: string | null;
@@ -96,225 +95,34 @@ function App() {
   const voiceRef = useRef(voice);
   const playbackSpeedRef = useRef(playbackSpeed);
   const shortcutRef = useRef(storedShortcut);
-  const backendConfigRef = useRef<BackendConfig | null>(null);
+  const backendClientRef = useRef(new SayItBackendClient());
   const activeAbortControllerRef = useRef<AbortController | null>(null);
-  const activeJobIdRef = useRef<string | null>(null);
   const captionTransitionTimeoutRef = useRef<number | null>(null);
   const playbackRunIdRef = useRef(0);
   const settingsOpenedDuringPlaybackRef = useRef(false);
   const isActiveRef = useRef(false);
   const statusRef = useRef<AppStatus>("ready");
-  const windowLabel = getCurrentWindow().label;
+  const windowLabel = getCurrentWindowLabel();
   const isSettingsWindow = windowLabel === "settings";
 
   const isActive = status === "loading" || status === "reading";
-
-  const resizeWindow = async (size: LogicalSize) => {
-    try {
-      await getCurrentWindow().setSize(size);
-    } catch (error) {
-      console.error("Unable to resize SayIt", error);
-    }
-  };
-
-  const hideWidget = async () => {
-    try {
-      await invoke("hide_window");
-    } catch (commandError) {
-      try {
-        await getCurrentWindow().hide();
-      } catch (windowError) {
-        console.error("Unable to hide SayIt", commandError, windowError);
-      }
-    }
-  };
-
-  const getSettingsWindowPosition = async () => {
-    const mainWindow = getCurrentWindow();
-    const monitor = await currentMonitor();
-    const mainPosition = await mainWindow.outerPosition();
-    const mainSize = await mainWindow.outerSize();
-    const scaleFactor = monitor?.scaleFactor || (await mainWindow.scaleFactor());
-    const mainLogicalPosition = mainPosition.toLogical(scaleFactor);
-    const mainLogicalSize = mainSize.toLogical(scaleFactor);
-
-    if (!monitor) {
-      return {
-        x: Math.round(mainLogicalPosition.x),
-        y: Math.round(mainLogicalPosition.y + mainLogicalSize.height + 10),
-      };
-    }
-
-    const workAreaPosition = monitor.workArea.position.toLogical(scaleFactor);
-    const workAreaSize = monitor.workArea.size.toLogical(scaleFactor);
-    const minX = workAreaPosition.x + WINDOW_EDGE_MARGIN;
-    const minY = workAreaPosition.y + WINDOW_EDGE_MARGIN;
-    const maxX =
-      workAreaPosition.x +
-      workAreaSize.width -
-      SETTINGS_WINDOW.width -
-      WINDOW_EDGE_MARGIN;
-    const maxY =
-      workAreaPosition.y +
-      workAreaSize.height -
-      SETTINGS_WINDOW.height -
-      WINDOW_EDGE_MARGIN;
-    const preferredX = mainLogicalPosition.x;
-    const preferredY =
-      mainLogicalPosition.y + mainLogicalSize.height + 10 + SETTINGS_WINDOW.height <= maxY
-        ? mainLogicalPosition.y + mainLogicalSize.height + 10
-        : mainLogicalPosition.y - SETTINGS_WINDOW.height - 10;
-
-    return {
-      x: Math.round(Math.min(Math.max(preferredX, minX), Math.max(minX, maxX))),
-      y: Math.round(Math.min(Math.max(preferredY, minY), Math.max(minY, maxY))),
-    };
-  };
-
-  const openSettingsWindow = async () => {
-    try {
-      const existingSettingsWindow = await WebviewWindow.getByLabel("settings");
-      if (existingSettingsWindow) {
-        const isSettingsVisible = await existingSettingsWindow.isVisible();
-        if (isSettingsVisible) {
-          await emit("settings_closed");
-          await existingSettingsWindow.hide();
-          return;
-        }
-
-        const position = await getSettingsWindowPosition();
-        await existingSettingsWindow.setSize(
-          new LogicalSize(SETTINGS_WINDOW.width, SETTINGS_WINDOW.height),
-        );
-        await existingSettingsWindow.setPosition(
-          new LogicalPosition(position.x, position.y),
-        );
-        await existingSettingsWindow.show();
-        await existingSettingsWindow.setFocus();
-        return;
-      }
-
-      const position = await getSettingsWindowPosition();
-      const settingsWindow = new WebviewWindow("settings", {
-        url: "/?window=settings",
-        title: "SayIt Settings",
-        width: SETTINGS_WINDOW.width,
-        height: SETTINGS_WINDOW.height,
-        x: position.x,
-        y: position.y,
-        resizable: false,
-        fullscreen: false,
-        transparent: true,
-        decorations: false,
-        alwaysOnTop: true,
-        skipTaskbar: true,
-        visible: true,
-        focus: true,
-        preventOverflow: {
-          width: WINDOW_EDGE_MARGIN,
-          height: WINDOW_EDGE_MARGIN,
-        },
-      });
-
-      settingsWindow.once("tauri://error", (event) => {
-        console.error("Unable to open SayIt settings", event.payload);
-      });
-    } catch (error) {
-      console.error("Unable to open SayIt settings", error);
-    }
-  };
-
-  const getBackendConfig = async () => {
-    if (backendConfigRef.current) return backendConfigRef.current;
-    const backendConfig = await invoke<BackendConfig>("get_backend_config");
-    backendConfigRef.current = backendConfig;
-    return backendConfig;
-  };
-
-  const cancelBackendJob = async (jobId: string) => {
-    try {
-      const backendConfig = await getBackendConfig();
-      await fetch(`${backendConfig.url}/cancel`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-SayIt-Token": backendConfig.token,
-        },
-        body: JSON.stringify({ job_id: jobId }),
-      });
-    } catch (error) {
-      console.error("Unable to cancel backend job", error);
-    }
-  };
 
   const requestSpeechAudio = async (
     text: string,
     selectedVoice: string,
     signal?: AbortSignal,
-  ) => {
-    const jobId = crypto.randomUUID();
-    activeJobIdRef.current = jobId;
-    const abortHandler = () => {
-      void cancelBackendJob(jobId);
-    };
-    signal?.addEventListener("abort", abortHandler, { once: true });
-    let lastConnectionError: unknown = null;
+  ) =>
+    backendClientRef.current.requestSpeechAudio(text, selectedVoice, signal);
 
-    try {
-      for (let attempt = 0; attempt < BACKEND_STARTUP_ATTEMPTS; attempt += 1) {
-        let response: Response;
-        try {
-          const backendConfig = await getBackendConfig();
-          response = await fetch(`${backendConfig.url}/synthesize`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-SayIt-Token": backendConfig.token,
-            },
-            body: JSON.stringify({ text, voice: selectedVoice, job_id: jobId }),
-            signal,
-          });
-        } catch (error) {
-          if (signal?.aborted) throw error;
-          lastConnectionError = error;
-          backendConfigRef.current = null;
-          if (attempt + 1 === BACKEND_STARTUP_ATTEMPTS) break;
-          await new Promise((resolve) =>
-            window.setTimeout(resolve, BACKEND_RETRY_DELAY_MS),
-          );
-          continue;
-        }
+  useEffect(() => {
+    if (isSettingsWindow) return;
 
-        if (!response.ok) {
-          let detail = `Speech service error (${response.status})`;
-          try {
-            const payload = await response.json();
-            if (typeof payload.detail === "string") {
-              detail = payload.detail.split("\n", 1)[0];
-            }
-          } catch {
-            // Keep the concise status-based fallback.
-          }
-          throw new Error(detail);
-        }
+    const frameId = window.requestAnimationFrame(() => {
+      void showCurrentWindow();
+    });
 
-        return response.blob();
-      }
-
-      throw new Error(
-        `Speech service did not start${
-          lastConnectionError instanceof Error
-            ? `: ${lastConnectionError.message}`
-            : ""
-        }`,
-      );
-    } finally {
-      signal?.removeEventListener("abort", abortHandler);
-      if (activeJobIdRef.current === jobId) {
-        activeJobIdRef.current = null;
-      }
-    }
-  };
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isSettingsWindow]);
 
   const resetToReady = () => {
     if (captionTransitionTimeoutRef.current !== null) {
@@ -338,13 +146,13 @@ function App() {
     };
 
     const backendRestarted = listen("backend_restarted", () => {
-      backendConfigRef.current = null;
+      backendClientRef.current.resetConfig();
       if (statusRef.current === "error") {
         resetToReady();
       }
     });
     const backendStatus = listen<string>("backend_status", (event) => {
-      backendConfigRef.current = null;
+      backendClientRef.current.resetConfig();
       setStatus("error");
       setStatusMessage("Speech service unavailable");
       setErrorCause(event.payload);
@@ -544,8 +352,8 @@ function App() {
       if (!settingsOpenedDuringPlaybackRef.current) return;
       settingsOpenedDuringPlaybackRef.current = false;
       if (!isActiveRef.current) {
-        await resizeWindow(COMPACT_SIZE);
-        await hideWidget();
+        await resizeCurrentWindow(COMPACT_SIZE);
+        await hideCurrentWindow();
       }
     });
 
@@ -560,7 +368,7 @@ function App() {
     const unlisten = listen("open_settings_request", async () => {
       setHasSeenIntro(true);
       markIntroSeen();
-      await openSettingsWindow();
+      await toggleSettingsWindowVisibility();
     });
 
     return () => {
@@ -613,7 +421,7 @@ function App() {
         setLastCapturedText("");
         setCaptions({ current: "", next: "" });
         setOutgoingCaption("");
-        await resizeWindow(COMPACT_SIZE);
+        await resizeCurrentWindow(COMPACT_SIZE);
         return;
       }
 
@@ -627,7 +435,7 @@ function App() {
         setLastCapturedText("");
         setCaptions({ current: "", next: "" });
         setOutgoingCaption("");
-        await resizeWindow(COMPACT_SIZE);
+        await resizeCurrentWindow(COMPACT_SIZE);
         return;
       }
 
@@ -640,7 +448,7 @@ function App() {
         setLastCapturedText("");
         setCaptions({ current: "", next: "" });
         setOutgoingCaption("");
-        await resizeWindow(COMPACT_SIZE);
+        await resizeCurrentWindow(COMPACT_SIZE);
         return;
       }
 
@@ -679,7 +487,7 @@ function App() {
 
       showCaptionLine(0);
       setOutgoingCaption("");
-      await resizeWindow(ACTIVE_SIZE);
+      await resizeCurrentWindow(ACTIVE_SIZE);
 
       let shouldStop = false;
       const stopReading = () => {
@@ -789,19 +597,19 @@ function App() {
         if (!shouldStop) {
           resetToReady();
           if (!settingsOpenedDuringPlaybackRef.current) {
-            await resizeWindow(COMPACT_SIZE);
-            await hideWidget();
+            await resizeCurrentWindow(COMPACT_SIZE);
+            await hideCurrentWindow();
           }
         } else {
           resetToReady();
-          await resizeWindow(COMPACT_SIZE);
+          await resizeCurrentWindow(COMPACT_SIZE);
         }
       } catch (error) {
         console.error("Speech playback failed", error);
         if (abortController.signal.aborted) {
           if (isCurrentPlaybackRun()) {
             resetToReady();
-            await resizeWindow(COMPACT_SIZE);
+            await resizeCurrentWindow(COMPACT_SIZE);
           }
           return;
         }
@@ -814,7 +622,7 @@ function App() {
         setStatusMessage("Couldn’t play the selection");
         setCaptions({ current: "", next: "" });
         setOutgoingCaption("");
-        await resizeWindow(COMPACT_SIZE);
+        await resizeCurrentWindow(COMPACT_SIZE);
       } finally {
         if (activeAbortControllerRef.current === abortController) {
           activeAbortControllerRef.current = null;
@@ -881,7 +689,7 @@ function App() {
       setStatus("saved");
       setStatusMessage("Settings saved");
       resetToReady();
-      await closeSettingsWindow();
+      await closeSettingsPanel();
     } catch (error) {
       console.error("Shortcut update failed", error);
       setSettingsFeedback("That shortcut isn’t available. Try another combination.");
@@ -930,23 +738,22 @@ function App() {
     }
   };
 
-  const closeSettingsWindow = async () => {
+  const closeSettingsPanel = async () => {
     setSettingsFeedback("");
     setIsRecordingShortcut(false);
-    await emit("settings_closed");
-    await getCurrentWindow().hide();
+    await closeTauriSettingsWindow();
   };
 
   const toggleSettings = async () => {
     if (isSettingsWindow) {
-      await closeSettingsWindow();
+      await closeSettingsPanel();
       return;
     }
 
     setHasSeenIntro(true);
     markIntroSeen();
     if (isActive) settingsOpenedDuringPlaybackRef.current = true;
-    await openSettingsWindow();
+    await toggleSettingsWindowVisibility();
   };
 
   const handleStop = async () => {
@@ -958,7 +765,7 @@ function App() {
       audioRef.current.currentTime = 0;
     }
     resetToReady();
-    await resizeWindow(COMPACT_SIZE);
+    await resizeCurrentWindow(COMPACT_SIZE);
   };
 
   const handleRetry = async () => {
@@ -977,7 +784,7 @@ function App() {
 
   const handleDismiss = async () => {
     if (isSettingsWindow) {
-      await closeSettingsWindow();
+      await closeSettingsPanel();
       return;
     }
 
@@ -985,8 +792,8 @@ function App() {
     settingsOpenedDuringPlaybackRef.current = false;
     const settingsWindow = await WebviewWindow.getByLabel("settings");
     await settingsWindow?.hide();
-    await resizeWindow(COMPACT_SIZE);
-    await hideWidget();
+    await resizeCurrentWindow(COMPACT_SIZE);
+    await hideCurrentWindow();
   };
 
   useEffect(() => {
@@ -1030,7 +837,7 @@ function App() {
         ) {
           return;
         }
-        getCurrentWindow().startDragging();
+        void startDraggingCurrentWindow();
       }}
     >
       <audio ref={audioRef} crossOrigin="anonymous" hidden />

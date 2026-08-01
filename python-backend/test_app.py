@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 import wave
 import unittest
@@ -156,6 +157,7 @@ class BackendValidationTests(unittest.TestCase):
 
         unavailable = client.get("/health", headers={"X-SayIt-Token": "test-token"})
         self.assertEqual(unavailable.status_code, 503)
+        self.assertIn("Kokoro import failed", unavailable.json()["detail"])
 
     def test_synthesis_and_cancel_endpoints_require_token(self):
         client = TestClient(sayit_app.app)
@@ -258,7 +260,9 @@ class BackendValidationTests(unittest.TestCase):
                 return iter([])
 
         original_pipeline = sayit_app.pipeline
+        original_queue_wait = sayit_app.INFERENCE_QUEUE_WAIT_SECONDS
         sayit_app.pipeline = FakePipeline()
+        sayit_app.INFERENCE_QUEUE_WAIT_SECONDS = 0
         sayit_app.remember_latest_job("running-job")
         acquired = sayit_app.inference_lock.acquire(blocking=False)
         self.assertTrue(acquired)
@@ -274,10 +278,46 @@ class BackendValidationTests(unittest.TestCase):
         finally:
             sayit_app.inference_lock.release()
             sayit_app.pipeline = original_pipeline
+            sayit_app.INFERENCE_QUEUE_WAIT_SECONDS = original_queue_wait
 
         self.assertEqual(context.exception.status_code, 429)
         self.assertTrue(sayit_app.job_is_stale_or_canceled("running-job"))
         self.assertFalse(sayit_app.job_is_stale_or_canceled("busy-job"))
+
+    def test_synthesize_waits_briefly_for_inference_lock(self):
+        class FakePipeline:
+            def __call__(self, *_args, **_kwargs):
+                return iter([("text", "phonemes", [0.1])])
+
+        original_pipeline = sayit_app.pipeline
+        original_queue_wait = sayit_app.INFERENCE_QUEUE_WAIT_SECONDS
+        sayit_app.pipeline = FakePipeline()
+        sayit_app.INFERENCE_QUEUE_WAIT_SECONDS = 0.5
+        acquired = sayit_app.inference_lock.acquire(blocking=False)
+        self.assertTrue(acquired)
+
+        def release_lock():
+            time.sleep(0.05)
+            sayit_app.inference_lock.release()
+
+        releaser = threading.Thread(target=release_lock)
+        releaser.start()
+        try:
+            response = sayit_app.synthesize(
+                sayit_app.SynthesizeRequest(
+                    text="hello",
+                    voice="af_heart",
+                    job_id="queued-job",
+                )
+            )
+
+            self.assertEqual(response.media_type, "audio/wav")
+        finally:
+            releaser.join(timeout=1)
+            if sayit_app.inference_lock.acquire(blocking=False):
+                sayit_app.inference_lock.release()
+            sayit_app.pipeline = original_pipeline
+            sayit_app.INFERENCE_QUEUE_WAIT_SECONDS = original_queue_wait
 
     def test_synthesize_timeout_marks_backend_unhealthy_until_restart(self):
         class SlowPipeline:
@@ -288,8 +328,10 @@ class BackendValidationTests(unittest.TestCase):
         client = TestClient(sayit_app.app)
         original_pipeline = sayit_app.pipeline
         original_deadline = sayit_app.INFERENCE_DEADLINE_SECONDS
+        original_grace = sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS
         sayit_app.pipeline = SlowPipeline()
         sayit_app.INFERENCE_DEADLINE_SECONDS = 0.01
+        sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS = 0.01
         reset_backend_degraded_state()
         try:
             with self.assertRaises(HTTPException) as context:
@@ -308,6 +350,38 @@ class BackendValidationTests(unittest.TestCase):
         finally:
             sayit_app.pipeline = original_pipeline
             sayit_app.INFERENCE_DEADLINE_SECONDS = original_deadline
+            sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS = original_grace
+            wait_for_inference_lock_release()
+            reset_backend_degraded_state()
+
+    def test_synthesize_uses_result_when_generation_finishes_during_timeout_grace(self):
+        class SlightlySlowPipeline:
+            def __call__(self, *_args, **_kwargs):
+                time.sleep(0.05)
+                return iter([("text", "phonemes", [0.1])])
+
+        original_pipeline = sayit_app.pipeline
+        original_deadline = sayit_app.INFERENCE_DEADLINE_SECONDS
+        original_grace = sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS
+        sayit_app.pipeline = SlightlySlowPipeline()
+        sayit_app.INFERENCE_DEADLINE_SECONDS = 0.01
+        sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS = 0.2
+        reset_backend_degraded_state()
+        try:
+            response = sayit_app.synthesize(
+                sayit_app.SynthesizeRequest(
+                    text="hello",
+                    voice="af_heart",
+                    job_id="grace-job",
+                )
+            )
+
+            self.assertEqual(response.media_type, "audio/wav")
+            self.assertEqual(sayit_app.backend_degraded(), "")
+        finally:
+            sayit_app.pipeline = original_pipeline
+            sayit_app.INFERENCE_DEADLINE_SECONDS = original_deadline
+            sayit_app.INFERENCE_TIMEOUT_GRACE_SECONDS = original_grace
             wait_for_inference_lock_release()
             reset_backend_degraded_state()
 

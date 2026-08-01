@@ -16,6 +16,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 KOKORO_IMPORT_ERROR = ""
+pipeline_load_error = ""
 
 if os.environ.get("SAYIT_SKIP_MODEL_LOAD") == "1":
     KModel = None  # type: ignore[assignment]
@@ -36,6 +37,8 @@ MAX_JOB_ID_CHARS = 80
 CANCELED_JOB_HISTORY_LIMIT = 128
 SAMPLE_RATE = 24_000
 INFERENCE_DEADLINE_SECONDS = float(os.environ.get("SAYIT_INFERENCE_DEADLINE_SECONDS", "45"))
+INFERENCE_TIMEOUT_GRACE_SECONDS = float(os.environ.get("SAYIT_INFERENCE_TIMEOUT_GRACE_SECONDS", "2"))
+INFERENCE_QUEUE_WAIT_SECONDS = float(os.environ.get("SAYIT_INFERENCE_QUEUE_WAIT_SECONDS", "3"))
 AUTH_TOKEN = os.environ.get("SAYIT_BACKEND_TOKEN", "")
 MODEL_DIR = Path(__file__).resolve().parent / "models" / "kokoro"
 MODEL_FILE = "kokoro-v1_0.pth"
@@ -135,12 +138,15 @@ def validate_request(request: SynthesizeRequest) -> tuple[str, str]:
 
 
 def load_pipeline():
+    global pipeline_load_error
+    pipeline_load_error = ""
     if os.environ.get("SAYIT_SKIP_MODEL_LOAD") == "1":
         LOGGER.info("Skipping Kokoro model load because SAYIT_SKIP_MODEL_LOAD=1.")
         return None
 
     if KPipeline is None or KModel is None:
         LOGGER.error("Kokoro is unavailable: %s", KOKORO_IMPORT_ERROR)
+        pipeline_load_error = KOKORO_IMPORT_ERROR
         return None
 
     try:
@@ -154,6 +160,7 @@ def load_pipeline():
             if not path.is_file()
         ]
         if missing_paths:
+            pipeline_load_error = "Offline Kokoro assets are incomplete."
             LOGGER.error(
                 "Offline Kokoro assets are incomplete. Missing: %s",
                 ", ".join(str(path) for path in missing_paths),
@@ -163,13 +170,17 @@ def load_pipeline():
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
         LOGGER.info("Loading Kokoro TTS model from %s.", model_dir)
-        model = KModel(config=str(config_path), model=str(model_path)).to("cpu").eval()
-        pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M", model=model, device="cpu")
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        LOGGER.info("Using device: %s", device)
+        model = KModel(config=str(config_path), model=str(model_path)).to(device).eval()
+        pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M", model=model, device=device)
         for voice in ALLOWED_VOICES:
             pipeline.voices[voice] = pipeline.load_single_voice(str(voices_dir / f"{voice}.pt"))
         LOGGER.info("Kokoro TTS model loaded.")
         return pipeline
-    except Exception:
+    except Exception as load_error:
+        pipeline_load_error = str(load_error)
         LOGGER.exception("Failed to load Kokoro TTS model.")
         return None
 
@@ -267,9 +278,10 @@ def render_speech_with_deadline(text: str, voice: str, job_id: str) -> io.BytesI
         raise
 
     if not completed.wait(INFERENCE_DEADLINE_SECONDS):
-        cancel_job(job_id)
-        mark_backend_degraded("Speech synthesis timed out while inference was still running.")
-        raise HTTPException(status_code=504, detail="Speech synthesis timed out.")
+        if not completed.wait(INFERENCE_TIMEOUT_GRACE_SECONDS):
+            cancel_job(job_id)
+            mark_backend_degraded("Speech synthesis timed out while inference was still running.")
+            raise HTTPException(status_code=504, detail="Speech synthesis timed out.")
 
     error = result.get("error")
     if error:
@@ -298,7 +310,12 @@ async def log_errors(request: Request, call_next):
 @app.get("/health")
 def health(_auth: None = Depends(require_auth)):
     if pipeline is None:
-        raise HTTPException(status_code=503, detail="TTS service is unavailable.")
+        detail = "TTS service is unavailable."
+        if KOKORO_IMPORT_ERROR:
+            detail = f"{detail} Kokoro import failed: {KOKORO_IMPORT_ERROR}"
+        elif pipeline_load_error:
+            detail = f"{detail} Pipeline load failed: {pipeline_load_error}"
+        raise HTTPException(status_code=503, detail=detail)
     if backend_degraded():
         raise HTTPException(status_code=503, detail="TTS service needs restart.")
     return {"status": "ok"}
@@ -319,7 +336,7 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
 
     remember_latest_job(request.job_id)
 
-    if not inference_lock.acquire(blocking=False):
+    if not inference_lock.acquire(timeout=INFERENCE_QUEUE_WAIT_SECONDS):
         raise HTTPException(status_code=429, detail="Speech synthesis is already running.")
 
     try:
@@ -341,6 +358,9 @@ def synthesize(request: SynthesizeRequest, _auth: None = Depends(require_auth)):
 
 if __name__ == "__main__":
     import uvicorn
+    from loopback import create_loopback_socket
 
-    port = int(os.environ.get("SAYIT_BACKEND_PORT", "8000"))
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    server_socket = create_loopback_socket()
+    config = uvicorn.Config(app, log_level="info")
+    server = uvicorn.Server(config)
+    server.run(sockets=[server_socket])

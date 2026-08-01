@@ -1,11 +1,11 @@
 import contextlib
-import socket
 import os
 import sys
 import threading
 import time
 
 import uvicorn
+from loopback import create_loopback_socket
 
 
 def parent_process_is_alive(pid: int) -> bool:
@@ -74,15 +74,7 @@ def load_backend_app():
     return app
 
 
-def create_loopback_socket() -> socket.socket:
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(("127.0.0.1", 0))
-    server_socket.listen(128)
-    return server_socket
-
-
-def announce_backend_url(server_socket: socket.socket) -> None:
+def announce_backend_url(server_socket) -> None:
     host, port = server_socket.getsockname()
     print(f"http://{host}:{port}", flush=True)
 
@@ -98,12 +90,16 @@ def run_backend(
     server_factory=create_uvicorn_server,
 ) -> None:
     exit_when_parent_exits()
-    with contextlib.redirect_stdout(sys.stderr):
-        app = load_app()
     server_socket = socket_factory()
     announce_backend_url(server_socket)
-    server = server_factory(app)
-    server.run(sockets=[server_socket])
+    try:
+        with contextlib.redirect_stdout(sys.stderr):
+            app = load_app()
+        server = server_factory(app)
+        server.run(sockets=[server_socket])
+    finally:
+        with contextlib.suppress(Exception):
+            server_socket.close()
 
 
 def main() -> None:
