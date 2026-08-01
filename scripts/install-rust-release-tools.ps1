@@ -6,9 +6,16 @@ param(
 $ErrorActionPreference = "Stop"
 
 function Invoke-Checked {
+  $oldPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+
   & $args[0] @($args[1..($args.Count - 1)])
-  if ($LASTEXITCODE -ne 0) {
-    throw "Command failed with exit code ${LASTEXITCODE}: $($args -join ' ')"
+  $exitCode = $LASTEXITCODE
+
+  $ErrorActionPreference = $oldPreference
+
+  if ($exitCode -ne 0) {
+    throw "Command failed with exit code ${exitCode}: $($args -join ' ')"
   }
 }
 
@@ -18,8 +25,13 @@ function Test-CargoSubcommandVersion {
     [string]$ExpectedVersion
   )
 
+  $oldPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
   $output = & cargo $Subcommand --version 2>$null
-  if ($LASTEXITCODE -ne 0) {
+  $exitCode = $LASTEXITCODE
+  $ErrorActionPreference = $oldPreference
+
+  if ($exitCode -ne 0) {
     return $false
   }
 
