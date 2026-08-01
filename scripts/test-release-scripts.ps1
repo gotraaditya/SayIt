@@ -218,7 +218,7 @@ try {
     throw "Expected invalid signing thumbprint to be rejected before signtool."
   }
 
-  $publicUpdaterKey = "untrusted comment: minisign public key: 54DEADBEEFDEADBE`nRWT000000000000000000000000000000000000000000000000000000000000000"
+  $publicUpdaterKey = "untrusted comment: minisign public key: 54DEADBEEFDEADBEEFDEADBEEFDEADBE`nRWT000000000000000000000000000000000000000000000000000000000000000"
   $publicUpdaterKeyResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey
   if ($publicUpdaterKeyResult.ExitCode -eq 0 -or -not $publicUpdaterKeyResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY must be a private updater signing key")) {
     throw "Expected public updater key text to be rejected."
