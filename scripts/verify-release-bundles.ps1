@@ -63,7 +63,7 @@ if (-not (Test-Path -LiteralPath $resolvedBundleDir)) {
 }
 
 if ($failures.Count -gt 0) {
-  Write-Error "Release bundle verification failed:`n- $($failures -join "`n- ")"
+  Write-Output "Release bundle verification failed:`n- $($failures -join "`n- ")"
   exit 1
 }
 

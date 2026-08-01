@@ -619,7 +619,7 @@ if (-not $SkipCleanMachineSmoke) {
 }
 
 if ($failures.Count -gt 0) {
-  Write-Error "Release readiness failed:`n- $($failures -join "`n- ")"
+  Write-Output "Release readiness failed:`n- $($failures -join "`n- ")"
   exit 1
 }
 

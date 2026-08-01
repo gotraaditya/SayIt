@@ -1,0 +1,1 @@
+$ErrorActionPreference = "Stop"; Write-Error "This is a very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very very long error message that might get wrapped"
