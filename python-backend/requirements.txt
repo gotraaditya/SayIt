@@ -1,5 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-fastapi==0.139.0
+fastapi==0.140.13
 uvicorn==0.51.0
 kokoro==0.9.4
 soundfile==0.14.0
