@@ -23,7 +23,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@fontsource-variable/instrument-sans": "^5.2.8",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
     "@fontsource/dm-mono": "^5.2.7",
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/api": "^2",
