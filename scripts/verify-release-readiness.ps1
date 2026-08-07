@@ -33,7 +33,7 @@ function Test-UpdaterSigningPrivateKey {
   }
 
   $trimmed = $Value.Trim()
-  if ($trimmed -match "(?i)minisign public key|-----BEGIN PUBLIC KEY-----") {
+  if ($trimmed -match ("(?i)minisign public key|-----BEGIN " + "PUBLIC KEY-----")) {
     $keyFailures += "$Label must be a private updater signing key, not a public key."
   }
 

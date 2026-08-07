@@ -221,17 +221,29 @@ try {
   $publicUpdaterKey = "untrusted comment: minisign public key: 54DEADBEEFDEADBEEFDEADBEEFDEADBE RWT000000000000000000000000000000000000000000000000000000000000000"
   $publicUpdaterKeyResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey
   if ($publicUpdaterKeyResult.ExitCode -eq 0 -or -not $publicUpdaterKeyResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY must be a private updater signing key")) {
-    throw "Expected public updater key text to be rejected."
+    Write-Host "Validation accepted the sample public updater key text: this is unexpected."
+    Write-Host "Expected rejection. Actual output:`n$($publicUpdaterKeyResult.Output)"
+    Exit 1
+  } else {
+    Write-Host "Validation correctly rejected sample public updater key text."
   }
 
   $placeholderUpdaterKeyResult = Invoke-ReleaseReadinessWithUpdaterKey "placeholder"
   if ($placeholderUpdaterKeyResult.ExitCode -eq 0 -or -not $placeholderUpdaterKeyResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY looks like a placeholder")) {
-    throw "Expected placeholder updater key text to be rejected."
+    Write-Host "Validation accepted the placeholder updater key text: this is unexpected."
+    Write-Host "Expected rejection. Actual output:`n$($placeholderUpdaterKeyResult.Output)"
+    Exit 1
+  } else {
+    Write-Host "Validation correctly rejected placeholder updater key text."
   }
 
   $publicUpdaterKeyFileResult = Invoke-ReleaseReadinessWithUpdaterKey $publicUpdaterKey -UseKeyFile
   if ($publicUpdaterKeyFileResult.ExitCode -eq 0 -or -not $publicUpdaterKeyFileResult.Output.Contains("TAURI_SIGNING_PRIVATE_KEY_PATH must be a private updater signing key")) {
-    throw "Expected public updater key file to be rejected."
+    Write-Host "Validation accepted the public updater key file: this is unexpected."
+    Write-Host "Expected rejection. Actual output:`n$($publicUpdaterKeyFileResult.Output)"
+    Exit 1
+  } else {
+    Write-Host "Validation correctly rejected public updater key file."
   }
 
   $absoluteMissingBundleDir = Join-Path $tempDir "missing-bundles"

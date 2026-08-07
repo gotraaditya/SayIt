@@ -1,5 +1,42 @@
 $ErrorActionPreference = "Stop"
 
+# Explicitly scan for embedded public/private keys before running the other audits
+$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+if (-not $repoRoot) { $repoRoot = Convert-Path . }
+
+# Exclude large/third-party folders that we don't want to scan
+$excludeDirs = @('.git', 'node_modules', '.packaging', 'python-backend\venv', 'python-backend.venv', 'target')
+
+# Patterns that commonly indicate an embedded public/private key
+$patterns = @(
+  '-----BEGIN ' + 'PUBLIC KEY-----',
+  '-----BEGIN ' + 'RSA PRIVATE KEY-----',
+  '-----BEGIN ' + 'PRIVATE KEY-----',
+  '-----BEGIN ' + 'OPENSSH PRIVATE KEY-----'
+)
+
+$matches = @()
+Get-ChildItem -Path $repoRoot -Recurse -File -ErrorAction SilentlyContinue |
+  Where-Object { $excludeDirs -notcontains $_.Directory.Name } |
+  ForEach-Object {
+    foreach ($p in $patterns) {
+      if (Select-String -Path $_.FullName -Pattern $p -SimpleMatch -Quiet) {
+        $matches += [PSCustomObject]@{ File = $_.FullName; Pattern = $p }
+        break
+      }
+    }
+  }
+
+if ($matches.Count -gt 0) {
+  Write-Host "ERROR: Found disallowed key material in the repository:"
+  foreach ($m in $matches) {
+    Write-Host " - $($m.File) contains pattern: $($m.Pattern)"
+  }
+  # Fail CI with non-zero exit code
+  Exit 1
+}
+
+
 function Invoke-Checked {
   param(
     [string]$Command,
