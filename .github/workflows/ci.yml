@@ -37,7 +37,7 @@ jobs:
 
       - name: Install Rust release tools
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/install-rust-release-tools.ps1
+        run: ./scripts/install-rust-release-tools.ps1
 
       - name: Frontend tests
         run: npm test -- --run
@@ -58,11 +58,11 @@ jobs:
 
       - name: Security audits
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1
+        run: ./scripts/audit-security.ps1
 
       - name: Build release sidecar assets
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/build-python-sidecar.ps1
+        run: ./scripts/build-python-sidecar.ps1
 
       - name: Verify release assets
         run: npm run verify:release-assets
@@ -72,4 +72,4 @@ jobs:
 
       - name: Generate SBOM
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1
+        run: ./scripts/generate-sbom.ps1

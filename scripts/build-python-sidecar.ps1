@@ -5,6 +5,25 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-FileSha256([string]$Path) {
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  } else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $fs = [System.IO.File]::OpenRead($Path)
+      try {
+        $bytes = $sha.ComputeHash($fs)
+      } finally {
+        $fs.Dispose()
+      }
+    } finally {
+      $sha.Dispose()
+    }
+    return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+  }
+}
+
 function Invoke-Checked {
   & $args[0] @($args[1..($args.Count - 1)])
   if ($LASTEXITCODE -ne 0) {
@@ -124,7 +143,7 @@ Get-ChildItem -Path $modelsDir -Recurse -File |
   Sort-Object FullName |
   ForEach-Object {
     $relative = $_.FullName.Substring($modelsDir.Length).TrimStart("\", "/").Replace("\", "/")
-    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+    $hash = Get-FileSha256 $_.FullName
     "$hash  $relative"
   } | Set-Content -Encoding utf8 -Path $hashFile
 

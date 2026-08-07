@@ -105,6 +105,25 @@ function Test-TextEvidence {
   }
 }
 
+function Get-FileSha256([string]$Path) {
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  } else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $fs = [System.IO.File]::OpenRead($Path)
+      try {
+        $bytes = $sha.ComputeHash($fs)
+      } finally {
+        $fs.Dispose()
+      }
+    } finally {
+      $sha.Dispose()
+    }
+    return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+  }
+}
+
 function Get-RequiredFileHash {
   param([string]$Path)
 
@@ -113,7 +132,7 @@ function Get-RequiredFileHash {
     return $null
   }
 
-  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  return Get-FileSha256 $Path
 }
 
 function Test-PrivateOrLocalIpAddress {
@@ -523,7 +542,7 @@ if (-not $SkipCleanMachineSmoke) {
       Add-Failure "Clean-machine smoke installer no longer exists: $($smokeReport.installerPath)"
     } else {
       $installer = Get-Item -LiteralPath $smokeReport.installerPath
-      $installerHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+      $installerHash = Get-FileSha256 $installer.FullName
       if ($installer.Extension -notin @(".exe", ".msi")) {
         Add-Failure "Clean-machine smoke installer is not a Windows .exe or .msi installer."
       }
@@ -553,7 +572,7 @@ if (-not $SkipCleanMachineSmoke) {
       if (-not $desktopLogPath -or -not (Test-Path -LiteralPath $desktopLogPath)) {
         Add-Failure "Clean-machine smoke desktop diagnostic log no longer exists: $desktopLogPath"
       } else {
-        $desktopLogHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $desktopLogPath).Hash.ToLowerInvariant()
+        $desktopLogHash = Get-FileSha256 $desktopLogPath
         if ($desktopLogHash -ne $smokeReport.diagnosticLogs.desktopLogSha256) {
           Add-Failure "Clean-machine smoke desktop diagnostic log hash no longer matches the report."
         }
@@ -573,7 +592,7 @@ if (-not $SkipCleanMachineSmoke) {
       if (-not $backendLogPath -or -not (Test-Path -LiteralPath $backendLogPath)) {
         Add-Failure "Clean-machine smoke backend diagnostic log no longer exists: $backendLogPath"
       } else {
-        $backendLogHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $backendLogPath).Hash.ToLowerInvariant()
+        $backendLogHash = Get-FileSha256 $backendLogPath
         if ($backendLogHash -ne $smokeReport.diagnosticLogs.backendLogSha256) {
           Add-Failure "Clean-machine smoke backend diagnostic log hash no longer matches the report."
         }

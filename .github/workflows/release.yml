@@ -32,7 +32,7 @@ jobs:
 
       - name: Install Rust release tools
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/install-rust-release-tools.ps1
+        run: ./scripts/install-rust-release-tools.ps1
 
       - name: Configure signing secrets
         shell: pwsh
@@ -71,7 +71,7 @@ jobs:
 
       - name: Build sidecar and offline model assets
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/build-python-sidecar.ps1
+        run: ./scripts/build-python-sidecar.ps1
 
       - name: Verify release assets
         run: npm run verify:release-assets
@@ -100,19 +100,19 @@ jobs:
 
       - name: Security audits
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/audit-security.ps1
+        run: ./scripts/audit-security.ps1
 
       - name: Generate SBOM
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/generate-sbom.ps1
+        run: ./scripts/generate-sbom.ps1
 
       - name: Generate release updater config
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/generate-release-config.ps1
+        run: ./scripts/generate-release-config.ps1
 
       - name: Check release readiness
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/verify-release-readiness.ps1 -SkipCleanMachineSmoke -ConfigPath release\tauri.release.conf.json
+        run: ./scripts/verify-release-readiness.ps1 -SkipCleanMachineSmoke -ConfigPath release\tauri.release.conf.json
 
       - name: Build signed Tauri bundles
         run: npx tauri build --config release\tauri.release.conf.json

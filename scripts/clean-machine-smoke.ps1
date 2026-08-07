@@ -16,6 +16,25 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-FileSha256([string]$Path) {
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  } else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $fs = [System.IO.File]::OpenRead($Path)
+      try {
+        $bytes = $sha.ComputeHash($fs)
+      } finally {
+        $fs.Dispose()
+      }
+    } finally {
+      $sha.Dispose()
+    }
+    return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+  }
+}
 $minimumInstallerBytes = 50MB
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $requiredVoices = @(
@@ -146,13 +165,13 @@ $report = [ordered]@{
   sourceCommit = $sourceCommit
   installerPath = $installer.FullName
   installerSize = $installer.Length
-  installerSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer.FullName).Hash.ToLowerInvariant()
+  installerSha256 = Get-FileSha256 $installer.FullName
   installerSignatureStatus = $installerSignature.Status.ToString()
   diagnosticLogs = [ordered]@{
     desktopLogPath = $desktopLog.FullName
-    desktopLogSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $desktopLog.FullName).Hash.ToLowerInvariant()
+    desktopLogSha256 = Get-FileSha256 $desktopLog.FullName
     backendLogPath = $backendLog.FullName
-    backendLogSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $backendLog.FullName).Hash.ToLowerInvariant()
+    backendLogSha256 = Get-FileSha256 $backendLog.FullName
   }
   checks = $checks
 }

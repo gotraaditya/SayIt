@@ -80,6 +80,25 @@ function Resolve-PythonForAudit {
   throw "No Python interpreter is available for pip-audit."
 }
 
+function Get-FileSha256([string]$Path) {
+  if (Get-Command Get-FileHash -ErrorAction SilentlyContinue) {
+    return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  } else {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      $fs = [System.IO.File]::OpenRead($Path)
+      try {
+        $bytes = $sha.ComputeHash($fs)
+      } finally {
+        $fs.Dispose()
+      }
+    } finally {
+      $sha.Dispose()
+    }
+    return ([System.BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+  }
+}
+
 function Get-RequiredFileHash {
   param([string]$Path)
 
@@ -87,7 +106,7 @@ function Get-RequiredFileHash {
     throw "Missing required audit input: $Path"
   }
 
-  return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+  return Get-FileSha256 $Path
 }
 
 $auditDir = Join-Path (Resolve-Path .) "release\audit"
